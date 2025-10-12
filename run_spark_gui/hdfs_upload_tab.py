@@ -201,6 +201,7 @@ class HDFSUploadTab:
         timestamp = datetime.now().strftime('%H:%M:%S')
         self.hdfs_log.insert(tk.END, f'[{timestamp}] {message}\n', tag)
         self.hdfs_log.see(tk.END)
+        self.hdfs_log.update_idletasks()  # Force UI update
     
     def save_hdfs_config(self):
         """Save HDFS configuration"""
@@ -217,8 +218,10 @@ class HDFSUploadTab:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
             self.log_hdfs('✅ Configuration saved', 'success')
             self.update_status('✅ HDFS config saved')
+            messagebox.showinfo('Success', 'HDFS configuration đã được lưu!')
         except Exception as e:
             self.log_hdfs(f'❌ Failed to save config: {e}', 'error')
+            messagebox.showerror('Error', f'Không thể lưu config:\n{e}')
     
     def on_extract_option_changed(self):
         """Handle extract option change"""
@@ -263,6 +266,7 @@ class HDFSUploadTab:
     def test_hdfs_connection(self):
         """Test HDFS connection"""
         self.log_hdfs('🔍 Testing HDFS connection...', 'info')
+        self.update_status('🔍 Testing connection...')
         
         def test_thread():
             try:
@@ -276,6 +280,10 @@ class HDFSUploadTab:
                 if container not in result_check.stdout:
                     self.log_hdfs(f'❌ Container "{container}" is not running!', 'error')
                     self.log_hdfs('💡 Start it with: docker start ' + container, 'info')
+                    self.update_status('❌ Container not running')
+                    messagebox.showerror('Connection Failed', 
+                                       f'Container "{container}" không đang chạy!\n\n'
+                                       f'Khởi động containers trước: docker-compose up -d')
                     return
                 
                 self.log_hdfs(f'  ✅ Container "{container}" is running', 'success')
@@ -320,9 +328,17 @@ class HDFSUploadTab:
                             self.log_hdfs(f'  {line}')
                     if len(lines) > 5:
                         self.log_hdfs(f'  ... and {len(lines)-5} more items', 'info')
+                    self.update_status('✅ HDFS connection OK')
+                    # Show success message
+                    self.hdfs_log.after(0, lambda: messagebox.showinfo('Success', 
+                        '✅ Kết nối HDFS thành công!\n\n'
+                        f'Container: {container}\n'
+                        'Namenode: Reachable\n'
+                        'Filesystem: Accessible'))
                 else:
                     error_msg = result.stderr.strip()
                     self.log_hdfs(f'❌ HDFS connection failed!', 'error')
+                    self.update_status('❌ Connection failed')
                     
                     # Parse common errors
                     if 'Connection refused' in error_msg:
@@ -337,9 +353,15 @@ class HDFSUploadTab:
                         self.log_hdfs('  💡 Wait or run: hadoop dfsadmin -safemode leave', 'info')
                     else:
                         self.log_hdfs(f'  Error details: {error_msg[:200]}', 'error')
+                    
+                    # Show error message
+                    self.hdfs_log.after(0, lambda: messagebox.showerror('Connection Failed', 
+                        f'❌ Không thể kết nối HDFS!\n\n'
+                        f'Xem log để biết chi tiết.'))
                         
             except subprocess.TimeoutExpired:
                 self.log_hdfs('❌ Connection test timeout!', 'error')
+                self.update_status('❌ Timeout')
                 self.log_hdfs('💡 Container or namenode may be frozen', 'info')
             except Exception as e:
                 self.log_hdfs(f'❌ Error: {e}', 'error')
@@ -438,9 +460,13 @@ class HDFSUploadTab:
         container = self.hdfs_container_var.get()
         hdfs_path = self.hdfs_path_var.get()
         total_files = len(self.selected_files)
+        success_count = 0
+        failed_count = 0
         
         # Create HDFS directory if not exists
         self.log_hdfs(f'📁 Checking HDFS directory: {hdfs_path}', 'info')
+        self.update_status('📁 Preparing upload...')
+        
         try:
             cmd_mkdir = ['docker', 'exec', container, 'hadoop', 'fs', '-mkdir', '-p', hdfs_path]
             result_mkdir = subprocess.run(cmd_mkdir, capture_output=True, text=True, timeout=10)
@@ -460,6 +486,7 @@ class HDFSUploadTab:
                     self.stop_btn['state'] = tk.DISABLED
                     self.add_files_btn['state'] = tk.NORMAL
                     self.add_folder_btn['state'] = tk.NORMAL
+                    self.update_status('❌ Upload failed')
                     return
         except Exception as e:
             self.log_hdfs(f'⚠️ Could not verify directory: {e}', 'error')
@@ -475,6 +502,7 @@ class HDFSUploadTab:
             progress = int((idx / total_files) * 100)
             self.upload_progress['value'] = progress
             self.progress_label['text'] = f'Uploading {idx + 1}/{total_files}: {Path(filepath).name}'
+            self.update_status(f'📤 Uploading {idx + 1}/{total_files}...')
             
             # Upload file
             filepath_obj = Path(filepath)
@@ -608,11 +636,13 @@ class HDFSUploadTab:
                 # Success
                 self.log_hdfs(f'  🎉 Successfully uploaded!', 'success')
                 self.update_tree_status(idx, 'Completed')
+                success_count += 1
                 
             except subprocess.TimeoutExpired:
                 self.log_hdfs(f'  ⏱️ Timeout! File is too large or slow network', 'error')
                 self.log_hdfs(f'  💡 Try splitting large files or increase timeout', 'info')
                 self.update_tree_status(idx, 'Timeout')
+                failed_count += 1
                 # Try cleanup
                 try:
                     subprocess.run(['docker', 'exec', container, 'rm', '-rf', '/tmp/extracted', f'/tmp/{filename}'], 
@@ -622,13 +652,36 @@ class HDFSUploadTab:
             except Exception as e:
                 self.log_hdfs(f'  ❌ Error: {e}', 'error')
                 self.update_tree_status(idx, 'Error')
+                failed_count += 1
         
         # Finished
         self.upload_progress['value'] = 100
         self.progress_label['text'] = 'Upload completed!'
         self.log_hdfs('\n' + '=' * 60, 'info')
-        self.log_hdfs('🎉 Batch upload finished!', 'success')
+        self.log_hdfs('📊 UPLOAD SUMMARY', 'info')
+        self.log_hdfs(f'  Total files: {total_files}', 'info')
+        self.log_hdfs(f'  ✅ Success: {success_count}', 'success')
+        if failed_count > 0:
+            self.log_hdfs(f'  ❌ Failed: {failed_count}', 'error')
         self.log_hdfs('=' * 60, 'info')
+        
+        # Update status  
+        if failed_count == 0:
+            self.update_status(f'✅ Upload complete ({success_count}/{total_files})')
+            # Show success notification
+            self.hdfs_log.after(0, lambda: messagebox.showinfo('Upload Complete', 
+                f'✅ Upload hoàn tất!\n\n'
+                f'Tổng: {total_files} file(s)\n'
+                f'Thành công: {success_count}\n'
+                f'HDFS path: {hdfs_path}'))
+        else:
+            self.update_status(f'⚠️ Upload done with errors ({success_count}/{total_files})')
+            self.hdfs_log.after(0, lambda: messagebox.showwarning('Upload Finished', 
+                f'⚠️ Upload có lỗi!\n\n'
+                f'Tổng: {total_files} file(s)\n'
+                f'Thành công: {success_count}\n'
+                f'Thất bại: {failed_count}\n\n'
+                f'Xem log để biết chi tiết.'))
         
         self.is_uploading = False
         self.upload_btn['state'] = tk.NORMAL

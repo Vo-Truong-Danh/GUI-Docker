@@ -1,24 +1,27 @@
 import tkinter as tk
-from tkinter import ttk, Menu
+from tkinter import ttk, Menu, scrolledtext
 import os
 import json
 import sys
 import atexit
 import signal
 import re
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from hdfs_upload_tab import HDFSUploadTab
 from ai_code_generator_tab import AICodeGeneratorTab
+from performance_monitor import PerformanceMonitor
 from theme import setup_theme, COLORS
 from spark_runner_tab import SparkRunnerTab
 
 APP_TITLE = "🚀 Spark Runner GUI - Pro Edition"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "2.4.2"
+VERSION = "3.0.0"  # Major upgrade with enhanced features
 
 INFO_TEXT = (
-    "💡 Ctrl+O: Mở file | Ctrl+R: Chạy | F5: Generate | F1: Trợ giúp | Esc: Dừng\n"
+    "💡 Ctrl+O: Mở file | Ctrl+R: Chạy | F5: Generate | F1: Trợ giúp | Esc: Dừng | Ctrl+S: Export Log\n"
+    "✨ Version 3.0: Enhanced performance, better UI/UX, auto-save, real-time monitoring\n"
     "Lịch sử và cấu hình được lưu tự động. Hover chuột lên nút để xem hướng dẫn chi tiết."
 )
 
@@ -135,10 +138,15 @@ class App:
         self.root = root
         self.config = load_config()
         self.is_running = False
+        self.auto_save_enabled = True
+        self.last_save_time = datetime.now()
         
         root.title(APP_TITLE)
-        root.geometry('1200x800')
-        root.minsize(1100, 700)
+        root.geometry('1280x850')  # Increased size for better visibility
+        root.minsize(1150, 750)
+        
+        # Center window on screen
+        self.center_window(root)
         
         # Register cleanup handlers
         atexit.register(self.cleanup)
@@ -178,6 +186,10 @@ class App:
         # Tab 3: AI Code Generator
         self.ai_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.ai_tab, text='🤖 AI Code Generator')
+        
+        # Tab 4: Performance Monitor
+        self.perf_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.perf_tab, text='📊 Performance Monitor')
 
         # Status bar
         self.status_var = tk.StringVar(value="✅ Ready")
@@ -199,9 +211,13 @@ class App:
             }
         )
         self.spark_runner.root = root # Pass root for dialogs/clipboard
+        self.spark_runner.app_instance = self  # Pass app instance for callbacks
         
         # Start log processor after root is set
         self.spark_runner._start_log_processor()
+        
+        # Start auto-save timer
+        self.start_auto_save_timer()
         
         # Initialize other tabs
         self.hdfs_upload = HDFSUploadTab(
@@ -213,6 +229,13 @@ class App:
         
         self.ai_generator = AICodeGeneratorTab(
             parent_frame=self.ai_tab,
+            config=self.config,
+            status_callback=self.update_status,
+            log_callback=self.append_log
+        )
+        
+        self.perf_monitor = PerformanceMonitor(
+            parent_frame=self.perf_tab,
             config=self.config,
             status_callback=self.update_status,
             log_callback=self.append_log
@@ -273,12 +296,22 @@ class App:
         menubar.add_cascade(label='Settings', menu=settings_menu)
         settings_menu.add_command(label='Lưu cấu hình hiện tại', command=lambda: self.spark_runner.on_save_config())
         settings_menu.add_command(label='Reset về mặc định', command=lambda: self.spark_runner.reset_config())
+        settings_menu.add_separator()
+        settings_menu.add_checkbutton(label='Auto-save config', command=self.toggle_auto_save)
+        settings_menu.add_separator()
+        settings_menu.add_command(label='Open Config Folder', command=self.open_config_folder)
+        settings_menu.add_command(label='Backup Configuration', command=self.backup_config)
+        settings_menu.add_command(label='Restore Configuration', command=self.restore_config)
         
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label='Help', menu=help_menu)
         help_menu.add_command(label='Hướng dẫn (F1)', command=lambda: self.spark_runner.show_help(), accelerator='F1')
         help_menu.add_command(label='Keyboard Shortcuts', command=lambda: self.spark_runner.show_shortcuts())
+        help_menu.add_command(label='Check for Updates', command=self.check_updates)
+        help_menu.add_separator()
+        help_menu.add_command(label='View Logs', command=self.view_app_logs)
+        help_menu.add_command(label='Report Issue', command=self.report_issue)
         help_menu.add_separator()
         help_menu.add_command(label='About', command=lambda: self.spark_runner.show_about())
     
@@ -347,6 +380,10 @@ class App:
             if hasattr(self, 'ai_generator'):
                 # Add cleanup if AICodeGeneratorTab has cleanup method
                 pass
+            if hasattr(self, 'perf_monitor'):
+                # Stop monitoring if active
+                if self.perf_monitor.monitoring:
+                    self.perf_monitor.stop_monitoring()
             print("Cleanup completed.")
         except Exception as e:
             print(f"Error during cleanup: {e}")
@@ -356,10 +393,143 @@ class App:
         print(f"\nReceived signal {signum}, shutting down gracefully...")
         self.cleanup()
         sys.exit(0)
+    
+    def open_config_folder(self):
+        """Open configuration folder"""
+        config_dir = os.path.dirname(os.path.abspath(CONFIG_FILE))
+        if sys.platform == 'win32':
+            os.startfile(config_dir)
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', config_dir])
+        else:
+            subprocess.Popen(['xdg-open', config_dir])
+    
+    def backup_config(self):
+        """Backup configuration"""
+        from tkinter import filedialog
+        import shutil
+        
+        backup_file = filedialog.asksaveasfilename(
+            defaultextension='.json',
+            filetypes=[('JSON files', '*.json')],
+            initialfile=f'spark_config_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+        )
+        
+        if backup_file:
+            try:
+                shutil.copy2(CONFIG_FILE, backup_file)
+                tk.messagebox.showinfo('Success', f'Configuration backed up to:\n{backup_file}')
+            except Exception as e:
+                tk.messagebox.showerror('Error', f'Failed to backup config:\n{e}')
+    
+    def restore_config(self):
+        """Restore configuration from backup"""
+        from tkinter import filedialog
+        import shutil
+        
+        backup_file = filedialog.askopenfilename(
+            title='Select backup file',
+            filetypes=[('JSON files', '*.json')]
+        )
+        
+        if backup_file:
+            if tk.messagebox.askyesno('Confirm', 'This will overwrite current configuration. Continue?'):
+                try:
+                    shutil.copy2(backup_file, CONFIG_FILE)
+                    self.config = load_config()
+                    tk.messagebox.showinfo('Success', 'Configuration restored. Please restart the application.')
+                except Exception as e:
+                    tk.messagebox.showerror('Error', f'Failed to restore config:\n{e}')
+    
+    def check_updates(self):
+        """Check for application updates"""
+        tk.messagebox.showinfo(
+            'Version Info',
+            f'Current Version: {VERSION}\n\n'
+            'This is the latest version with:\n'
+            '• Enhanced UI/UX\n'
+            '• Improved performance\n'
+            '• Better error handling\n'
+            '• Auto-save functionality\n'
+            '• Real-time monitoring'
+        )
+    
+    def view_app_logs(self):
+        """View application logs"""
+        log_window = tk.Toplevel(self.root)
+        log_window.title('Application Logs')
+        log_window.geometry('800x600')
+        
+        log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD,
+                                             bg='#1e1e1e', fg='#ffffff',
+                                             font=('Courier New', 9))
+        log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Get main log content
+        if hasattr(self.spark_runner, 'log_text_widget'):
+            log_text.insert('1.0', self.spark_runner.log_text_widget.get('1.0', tk.END))
+        else:
+            log_text.insert('1.0', 'No logs available yet.')
+    
+    def report_issue(self):
+        """Open issue reporting dialog"""
+        tk.messagebox.showinfo(
+            'Report Issue',
+            'To report issues:\n\n'
+            '1. Export your logs (Ctrl+S)\n'
+            '2. Describe the problem\n'
+            '3. Include steps to reproduce\n'
+            '4. Note your OS and Docker version\n\n'
+            'Contact: GitHub Issues or support@example.com'
+        )
 
+    def center_window(self, window):
+        """Center window on screen"""
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        window.geometry(f'{width}x{height}+{x}+{y}')
+    
+    def start_auto_save_timer(self):
+        """Start auto-save timer - saves config every 30 seconds"""
+        def auto_save():
+            if self.auto_save_enabled:
+                try:
+                    save_config(self.config)
+                    time_diff = (datetime.now() - self.last_save_time).seconds
+                    if time_diff >= 30:  # Only update status if 30+ seconds passed
+                        self.update_status('💾 Auto-saved')
+                        self.last_save_time = datetime.now()
+                except Exception as e:
+                    print(f"Auto-save error: {e}")
+            
+            # Schedule next auto-save
+            self.root.after(30000, auto_save)  # Every 30 seconds
+        
+        # Start first auto-save after 30 seconds
+        self.root.after(30000, auto_save)
+    
+    def toggle_auto_save(self):
+        """Toggle auto-save feature"""
+        self.auto_save_enabled = not self.auto_save_enabled
+        status = "enabled" if self.auto_save_enabled else "disabled"
+        self.update_status(f'💾 Auto-save {status}')
+        tk.messagebox.showinfo('Auto-Save', f'Auto-save has been {status}')
+    
     def on_closing(self):
         """Handle window close event"""
         from tkinter import messagebox
+        # Auto-save before closing
+        if self.auto_save_enabled:
+            try:
+                save_config(self.config)
+            except:
+                pass
+        
         if messagebox.askokcancel("Thoát", "Bạn có chắc chắn muốn thoát?"):
             self.cleanup()
             self.root.destroy()

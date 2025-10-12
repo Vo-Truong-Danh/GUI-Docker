@@ -6,7 +6,8 @@
   ],
   "hdfs_container": "namenode",
   "hdfs_host": "hdfs://namenode:8020",
-  "hdfs_default_path": "/user/spark/data",
+  "hdfs_default_path": "/input",
   "auto_extract_archives": true,
-  "delete_archive_after_extract": true
+  "delete_archive_after_extract": true,
+  "compose_file": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\docker-compose.yml"
 }

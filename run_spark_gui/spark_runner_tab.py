@@ -381,7 +381,7 @@ class SparkRunnerTab:
         
         ttk.Button(row4, text='OPEN SPARK UI', command=self.open_spark_ui).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        ttk.Button(row4, text='OPEN YARN UI', command=self.open_yarn_ui).pack(
+        ttk.Button(row4, text='OPEN HADOOP UI', command=self.open_hadoop_ui).pack(
             side=tk.LEFT, fill=tk.X, expand=True)
         
         # Log Management
@@ -2006,7 +2006,7 @@ Tiếp tục?"""
     
     def open_spark_ui(self):
         """Open Spark UI in browser"""
-        spark_ui_url = 'http://localhost:8080'
+        spark_ui_url = 'http://localhost:8081'
         self.append_log(f'🌐 Đang mở Spark UI: {spark_ui_url}', 'info')
         
         try:
@@ -2017,16 +2017,16 @@ Tiếp tục?"""
             self.append_log(f'❌ Không thể mở browser: {e}', 'error')
             tk.messagebox.showerror('Error', f'Không thể mở browser.\n\nVui lòng mở thủ công: {spark_ui_url}')
     
-    def open_yarn_ui(self):
-        """Open YARN UI in browser"""
-        yarn_ui_url = 'http://localhost:8088'
-        self.append_log(f'📊 Đang mở YARN UI: {yarn_ui_url}', 'info')
+    def open_hadoop_ui(self):
+        """Open Hadoop HDFS NameNode UI in browser"""
+        hadoop_ui_url = 'http://localhost:9870'
+        self.append_log(f'�️ Đang mở Hadoop UI: {hadoop_ui_url}', 'info')
         
         try:
             import webbrowser
-            webbrowser.open(yarn_ui_url)
-            self.callbacks['update_status']('📊 Opened YARN UI')
+            webbrowser.open(hadoop_ui_url)
+            self.callbacks['update_status']('�️ Opened Hadoop UI')
         except Exception as e:
             self.append_log(f'❌ Không thể mở browser: {e}', 'error')
-            tk.messagebox.showerror('Error', f'Không thể mở browser.\n\nVui lòng mở thủ công: {yarn_ui_url}')
+            tk.messagebox.showerror('Error', f'Không thể mở browser.\n\nVui lòng mở thủ công: {hadoop_ui_url}')
 
