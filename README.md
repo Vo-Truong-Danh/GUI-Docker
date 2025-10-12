@@ -9,10 +9,17 @@
 
 Inspired by GitHub, VS Code, and Notion - designed for developers who value simplicity and efficiency.
 
-> **🆕 New in v4.3.0:** Settings Tab + Project Cleanup - 55% fewer files, cleaner codebase!  
-> **🔧 New in v4.2.7:** HDFS path fix - Files now upload to correct directory with verification!  
-> **🔧 New in v4.2.4:** Enhanced logging & config management - See everything that's happening!  
-> **🔧 New in v4.2.3:** HDFS Upload fixed - ThreadPoolExecutor for reliable uploads!
+> **🆕 New in v4.3.0:**  
+> - ✅ **Full-Screen UI** - Window maximized on startup, F11 for true fullscreen  
+> - ✅ **Auto-Save Paths** - AI Code Generator automatically saves Input/Output paths  
+> - ✅ **Settings Tab** - Configure ports, resources, network settings  
+> - ✅ **Project Cleanup** - 55% fewer files, cleaner codebase  
+> - ✅ **Enhanced Logging** - HDFS Upload with toolbar, auto-scroll, line counter
+
+> **🔧 Previous Updates:**  
+> - v4.2.7: HDFS path fix - Files upload to correct directory  
+> - v4.2.4: Enhanced logging & config management  
+> - v4.2.3: HDFS Upload with ThreadPoolExecutor
 
 ---
 
@@ -63,8 +70,10 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - ✅ **HDFS connection testing**: Test connection trước khi upload
 
 #### 🤖 **AI Code Generator Tab**
+- ✅ **Auto-Save Input/Output Paths**: Tự động lưu và khôi phục paths 🆕
 - ✅ Tạo PySpark code từ mô tả văn bản
 - ✅ Templates có sẵn (Word Count, CSV Analysis, Data Filter...)
+- ✅ Smart analysis và recommendations
 - ✅ Syntax highlighting
 - ✅ Code validation
 - ✅ Export và chạy trực tiếp trong Spark Tab

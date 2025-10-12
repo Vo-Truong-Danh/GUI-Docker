@@ -5,6 +5,11 @@
   "hdfs_host": "hdfs://namenode:8020",
   "hdfs_default_path": "/input",
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/ts.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/solanxuathiencuacacnhanvat.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/tongtu.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/tongsoluongtu.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan02/demsoluong20tunhieunhat.py"
   ],
   "auto_extract_archives": true,
@@ -26,5 +31,9 @@
     "spark_worker_cores": "2",
     "hdfs_namenode_memory": "2g",
     "hdfs_datanode_memory": "2g"
+  },
+  "ai_code_generator": {
+    "last_input_file": "hdfs://namenode:8020/input/harrypotter.txt",
+    "last_output_path": "hdfs://namenode:8020/output"
   }
 }

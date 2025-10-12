@@ -149,11 +149,13 @@ class App:
         self.last_save_time = datetime.now()
         
         root.title(APP_TITLE)
-        root.geometry('1280x850')  # Increased size for better visibility
-        root.minsize(1150, 750)
         
-        # Center window on screen
-        self.center_window(root)
+        # Set window to maximized/full screen on startup
+        root.state('zoomed')  # Windows: maximized
+        # root.attributes('-fullscreen', True)  # Uncomment for true fullscreen
+        
+        # Minimum size
+        root.minsize(1150, 750)
         
         # Register cleanup handlers
         atexit.register(self.cleanup)
@@ -164,17 +166,23 @@ class App:
         # Setup modern theme
         self.theme = setup_modern_theme(root, mode='light')
         
+        # Fullscreen toggle support (F11 to toggle, Esc to exit)
+        self.is_fullscreen = False
+        root.bind('<F11>', self.toggle_fullscreen)
+        root.bind('<Escape>', self.exit_fullscreen)
+        
         # Setup menu bar
         self.create_menu()
         
-        # Main container with modern styling (no padding top for more space)
-        main_frame = ttk.Frame(root, padding=(Spacing.LG, 0, Spacing.LG, Spacing.LG))
+        # Main container - NO PADDING for full screen usage
+        main_frame = ttk.Frame(root, padding=(0, 0, 0, 0))
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # === Notebook with Tabs (Direct - No Header) ===
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(8, 8))
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
+        # Tab 1: Spark Runner
         # Tab 1: Spark Runner
         self.spark_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.spark_tab, text='🚀 Spark Runner')
@@ -679,17 +687,19 @@ class App:
             '4. Note your OS and Docker version\n\n'
             'Contact: GitHub Issues or support@example.com'
         )
-
-    def center_window(self, window):
-        """Center window on screen"""
-        window.update_idletasks()
-        width = window.winfo_width()
-        height = window.winfo_height()
-        screen_width = window.winfo_screenwidth()
-        screen_height = window.winfo_screenheight()
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-        window.geometry(f'{width}x{height}+{x}+{y}')
+    
+    def toggle_fullscreen(self, event=None):
+        """Toggle fullscreen mode (F11)"""
+        self.is_fullscreen = not self.is_fullscreen
+        self.root.attributes('-fullscreen', self.is_fullscreen)
+        return 'break'
+    
+    def exit_fullscreen(self, event=None):
+        """Exit fullscreen mode (Escape)"""
+        if self.is_fullscreen:
+            self.is_fullscreen = False
+            self.root.attributes('-fullscreen', False)
+        return 'break'
     
     def start_auto_save_timer(self):
         """Start auto-save timer - saves config every 30 seconds"""

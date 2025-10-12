@@ -636,6 +636,9 @@ class AICodeGeneratorTabV4Clean:
         self.analyzer = SmartCodeAnalyzer()
         self.templates = SmartTemplates()
         
+        # Load saved input/output paths
+        self.load_saved_paths()
+        
         self.create_ui()
     
     def create_ui(self):
@@ -783,13 +786,17 @@ class AICodeGeneratorTabV4Clean:
             font=('Segoe UI', 9, 'bold')
         ).pack(anchor='w', pady=(0, 4))
         
-        self.input_file_var = tk.StringVar(value='hdfs://namenode:9000/data/input.csv')
-        tk.Entry(
+        self.input_file_var = tk.StringVar(value=self.saved_input)
+        input_entry = tk.Entry(
             params_content,
             textvariable=self.input_file_var,
             font=('Segoe UI', 9),
             relief=tk.SOLID, borderwidth=1
-        ).pack(fill=tk.X, pady=(0, 12))
+        )
+        input_entry.pack(fill=tk.X, pady=(0, 12))
+        
+        # Auto-save on change
+        self.input_file_var.trace_add('write', lambda *args: self.save_paths_to_config())
         
         # Output file
         tk.Label(
@@ -798,13 +805,17 @@ class AICodeGeneratorTabV4Clean:
             font=('Segoe UI', 9, 'bold')
         ).pack(anchor='w', pady=(0, 4))
         
-        self.output_file_var = tk.StringVar(value='hdfs://namenode:9000/output')
-        tk.Entry(
+        self.output_file_var = tk.StringVar(value=self.saved_output)
+        output_entry = tk.Entry(
             params_content,
             textvariable=self.output_file_var,
             font=('Segoe UI', 9),
             relief=tk.SOLID, borderwidth=1
-        ).pack(fill=tk.X, pady=(0, 12))
+        )
+        output_entry.pack(fill=tk.X, pady=(0, 12))
+        
+        # Auto-save on change
+        self.output_file_var.trace_add('write', lambda *args: self.save_paths_to_config())
         
         # Template-specific params frame
         self.extra_params_frame = tk.Frame(params_content, bg='#FFFFFF')
@@ -1281,5 +1292,26 @@ if __name__ == "__main__":
         
         if self.append_log:
             self.append_log("✓ Code copied to clipboard\n")
+    
+    def load_saved_paths(self):
+        """Load saved input/output paths from config"""
+        self.saved_input = self.config.get('ai_code_generator', {}).get('last_input_file', 'hdfs://namenode:9000/data/input.csv')
+        self.saved_output = self.config.get('ai_code_generator', {}).get('last_output_path', 'hdfs://namenode:9000/output')
+    
+    def save_paths_to_config(self):
+        """Save current input/output paths to config silently (no popup)"""
+        if 'ai_code_generator' not in self.config:
+            self.config['ai_code_generator'] = {}
         
-        messagebox.showinfo("Success", "Code copied to clipboard!")
+        self.config['ai_code_generator']['last_input_file'] = self.input_file_var.get()
+        self.config['ai_code_generator']['last_output_path'] = self.output_file_var.get()
+        
+        # Save to file silently (no message box)
+        import json
+        config_path = os.path.join(os.path.dirname(__file__), 'spark_runner_config.json')
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            # Only print to console, no popup
+            pass
