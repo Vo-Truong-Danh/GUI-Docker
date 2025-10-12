@@ -1,0 +1,12 @@
+{
+  "container": "spark-worker",
+  "master": "spark://spark-master:7077",
+  "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/demsoluong20tunhieunhat.py"
+  ],
+  "hdfs_container": "namenode",
+  "hdfs_host": "hdfs://namenode:8020",
+  "hdfs_default_path": "/user/spark/data",
+  "auto_extract_archives": true,
+  "delete_archive_after_extract": true
+}
