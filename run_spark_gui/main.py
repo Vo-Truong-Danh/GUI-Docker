@@ -11,32 +11,19 @@ from pathlib import Path
 from datetime import datetime
 
 # Import V4 Clean Professional Design for all tabs
-try:
-    print("🔄 Loading Spark Runner Tab V4...")
-    from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
-    print("🔄 Loading HDFS Upload Tab V4...")
-    from hdfs_upload_tab_v4_clean import HDFSUploadTabV4Clean as HDFSUploadTab
-    print("🔄 Loading AI Code Generator Tab V4...")
-    from ai_code_generator_tab_v4_clean import AICodeGeneratorTabV4Clean as AICodeGeneratorTab
-    print("🔄 Loading Performance Monitor V4...")
-    from performance_monitor_v4_clean import PerformanceMonitorV4Clean as PerformanceMonitor
-    print("🔄 Loading Docker Compose Editor V4...")
-    from docker_compose_editor_v4 import DockerComposeEditorV4
-    print("✅ Using Clean Professional UI V4 (all tabs)")
-except ImportError as e:
-    print(f"⚠️ V4 Clean import failed: {e}")
-    import traceback
-    traceback.print_exc()
-    try:
-        from spark_runner_tab import SparkRunnerTab
-        from hdfs_upload_tab_modern import HDFSUploadTabModern as HDFSUploadTab
-        from ai_code_generator_tab import AICodeGeneratorTab
-        from performance_monitor import PerformanceMonitor
-        DockerComposeEditorV4 = None  # Fallback
-        print("⚠️ Using fallback UI (original)")
-    except ImportError:
-        print("❌ No UI modules found!")
-        sys.exit(1)
+print("🔄 Loading Spark Runner Tab V4...")
+from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
+print("🔄 Loading HDFS Upload Tab V4...")
+from hdfs_upload_tab_v4_clean import HDFSUploadTabV4Clean as HDFSUploadTab
+print("🔄 Loading AI Code Generator Tab V4...")
+from ai_code_generator_tab_v4_clean import AICodeGeneratorTabV4Clean as AICodeGeneratorTab
+print("🔄 Loading Performance Monitor V4...")
+from performance_monitor_v4_clean import PerformanceMonitorV4Clean as PerformanceMonitor
+print("🔄 Loading Docker Compose Editor V4...")
+from docker_compose_editor_v4 import DockerComposeEditorV4
+print("🔄 Loading Settings Tab V4...")
+from settings_tab_v4 import SettingsTabV4
+print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
 APP_TITLE = "Spark Runner GUI V4.1"
@@ -207,6 +194,10 @@ class App:
         # Tab 5: Docker Compose Editor
         self.compose_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.compose_tab, text='🐳 Docker Compose')
+        
+        # Tab 6: Settings
+        self.settings_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.settings_tab, text='⚙️ Settings')
 
         # Enhanced Status bar with multiple sections
         status_frame = tk.Frame(root, bg='#F0F0F0', relief=tk.SUNKEN, borderwidth=1)
@@ -364,43 +355,55 @@ class App:
         )
         
         # Initialize Docker Compose Editor with error handling
-        if DockerComposeEditorV4:
-            try:
-                print("🔄 Initializing Docker Compose Editor...")
-                self.compose_editor = DockerComposeEditorV4(
-                    parent_frame=self.compose_tab,
-                    config=self.config,
-                    status_callback=self.update_status,
-                    log_callback=self.append_log
-                )
-                print("✅ Docker Compose Editor initialized")
-            except Exception as e:
-                print(f"⚠️ Docker Compose Editor initialization failed: {e}")
-                import traceback
-                traceback.print_exc()
-                # Create fallback message in tab
-                error_label = tk.Label(
-                    self.compose_tab,
-                    text=f"❌ Docker Compose Editor failed to load:\n{str(e)}\n\nPlease check console for details.",
-                    font=('Segoe UI', 10),
-                    fg='#CF222E',
-                    bg='#FFFFFF',
-                    justify=tk.LEFT,
-                    padx=20, pady=20
-                )
-                error_label.pack(fill=tk.BOTH, expand=True)
-        else:
-            # Create message if module not available
-            info_label = tk.Label(
+        try:
+            print("🔄 Initializing Docker Compose Editor...")
+            self.compose_editor = DockerComposeEditorV4(
+                parent_frame=self.compose_tab,
+                config=self.config,
+                status_callback=self.update_status,
+                log_callback=self.append_log
+            )
+            print("✅ Docker Compose Editor initialized")
+        except Exception as e:
+            print(f"⚠️ Docker Compose Editor initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create fallback message in tab
+            error_label = tk.Label(
                 self.compose_tab,
-                text="⚠️ Docker Compose Editor module not available.\n\nPlease check if docker_compose_editor_v4.py exists.",
+                text=f"❌ Docker Compose Editor failed to load:\n{str(e)}\n\nPlease check console for details.",
                 font=('Segoe UI', 10),
-                fg='#9A6700',
+                fg='#CF222E',
                 bg='#FFFFFF',
                 justify=tk.LEFT,
                 padx=20, pady=20
             )
-            info_label.pack(fill=tk.BOTH, expand=True)
+            error_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize Settings Tab
+        try:
+            print("🔄 Initializing Settings Tab...")
+            self.settings = SettingsTabV4(
+                parent=self.settings_tab,
+                config_file=CONFIG_FILE,
+                append_log=self.append_log
+            )
+            print("✅ Settings Tab initialized")
+        except Exception as e:
+            print(f"⚠️ Settings Tab initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create fallback message in tab
+            error_label = tk.Label(
+                self.settings_tab,
+                text=f"❌ Settings Tab failed to load:\n{str(e)}\n\nPlease check console for details.",
+                font=('Segoe UI', 10),
+                fg='#CF222E',
+                bg='#FFFFFF',
+                justify=tk.LEFT,
+                padx=20, pady=20
+            )
+            error_label.pack(fill=tk.BOTH, expand=True)
         
         self.setup_shortcuts()
         

@@ -1,6 +1,6 @@
-# 🚀 Spark Runner GUI V4.2.7 - Clean Professional Edition
+# 🚀 Spark Runner GUI V4.3.0 - Clean & Enhanced
 
-![Version](https://img.shields.io/badge/version-4.2.7-blue.svg)
+![Version](https://img.shields.io/badge/version-4.3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![UI](https://img.shields.io/badge/UI-Clean%20Professional-purple.svg)
 ![Status](https://img.shields.io/badge/status-production-success.svg)
@@ -9,10 +9,10 @@
 
 Inspired by GitHub, VS Code, and Notion - designed for developers who value simplicity and efficiency.
 
+> **🆕 New in v4.3.0:** Settings Tab + Project Cleanup - 55% fewer files, cleaner codebase!  
 > **🔧 New in v4.2.7:** HDFS path fix - Files now upload to correct directory with verification!  
 > **🔧 New in v4.2.4:** Enhanced logging & config management - See everything that's happening!  
-> **🔧 New in v4.2.3:** HDFS Upload fixed - ThreadPoolExecutor for reliable uploads!  
-> **🔥 New in v4.2.2:** Proactive cleanup - Always works in ONE attempt!
+> **🔧 New in v4.2.3:** HDFS Upload fixed - ThreadPoolExecutor for reliable uploads!
 
 ---
 
@@ -42,21 +42,25 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - ✅ **Auto Run Mode**: Tự động copy file và submit Spark job
 - ✅ **Step-by-Step Execution**: Chạy từng bước thủ công
 - ✅ **Docker Management**: Start/Stop/Restart containers
-- ✅ **Smart Conflict Detection**: Tự động phát hiện & giải quyết container name conflicts 🆕
+- ✅ **Smart Conflict Detection**: Tự động phát hiện & giải quyết container name conflicts
 - ✅ **Real-time Logs**: Xem output và errors trực tiếp
 - ✅ **File History**: Lưu lịch sử 10 files gần nhất
 - ✅ **Command Generation**: Tạo Docker commands tự động
-- ✅ **Compose File Editor**: Chỉnh sửa docker-compose.yml với validation 🆕
+- ✅ **Compose File Editor**: Chỉnh sửa docker-compose.yml với validation
 - ✅ **Docker Status Monitor**: Kiểm tra trạng thái containers
-- ✅ **Path Management**: Quản lý đường dẫn docker-compose file với browse button 🆕
+- ✅ **Path Management**: Quản lý đường dẫn docker-compose file với browse button
 
 #### 📤 **HDFS Upload Tab**
-- ✅ Upload nhiều files cùng lúc
-- ✅ Hỗ trợ đa dạng file types (CSV, JSON, Parquet, TXT, ZIP...)
-- ✅ Auto-extract compressed files
-- ✅ Batch operations với progress tracking
-- ✅ File validation trước khi upload
-- ✅ HDFS connection testing
+- ✅ **Multi-file Upload**: Upload nhiều files cùng lúc với drag & drop
+- ✅ **Enhanced Logging**: Log toolbar với auto-scroll, clear, copy buttons 🆕
+- ✅ **Scrollbar**: Smooth scrolling cho long logs 🆕
+- ✅ **Line Counter**: Track số dòng log real-time 🆕
+- ✅ **Verified Upload**: 4-step process với mkdir, upload, verify 🆕
+- ✅ **Hỗ trợ đa dạng file types**: CSV, JSON, Parquet, TXT, ZIP...
+- ✅ **Auto-extract**: Tự động extract compressed files
+- ✅ **Batch operations**: Progress tracking cho nhiều files
+- ✅ **File validation**: Validate trước khi upload
+- ✅ **HDFS connection testing**: Test connection trước khi upload
 
 #### 🤖 **AI Code Generator Tab**
 - ✅ Tạo PySpark code từ mô tả văn bản
@@ -66,7 +70,7 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - ✅ Export và chạy trực tiếp trong Spark Tab
 - ✅ Custom templates
 
-#### 📊 **Performance Monitor Tab** *(NEW in v3.0)*
+#### 📊 **Performance Monitor Tab**
 - ✅ Real-time monitoring Docker containers
 - ✅ Track CPU, Memory, Network I/O
 - ✅ Multiple views: Table, Detail, History
@@ -74,7 +78,28 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - ✅ Export statistics to JSON
 - ✅ Alert cho high resource usage
 
-### 🎨 **UI/UX Enhancements**
+#### 🐳 **Docker Compose Editor Tab**
+- ✅ Edit docker-compose.yml trực tiếp trong GUI
+- ✅ Syntax highlighting cho YAML
+- ✅ Validation real-time
+- ✅ Quick actions: Start/Stop/View Services
+- ✅ Backup file tự động
+
+#### ⚙️ **Settings Tab** *(NEW in v4.3.0)* 🆕
+- ✅ **Port Configuration**: Điều chỉnh ports cho tất cả services
+  - Spark Master UI (9090)
+  - Spark Worker UI (8081)
+  - HDFS NameNode UI (9870)
+  - HDFS DataNode UI (9864)
+  - History Server (18080)
+  - Jupyter (8888)
+- ✅ **Quick Open Buttons**: Mở service trong browser với 1 click �
+- ✅ **Resource Limits**: Configure memory và cores
+- ✅ **Docker Network**: Manage network settings
+- ✅ **Test Connections**: Verify all services accessible
+- ✅ **Save/Reset**: Lưu config hoặc reset về default
+
+### �🎨 **UI/UX Enhancements**
 
 - 🎨 Modern Material Design interface
 - 🌈 Color-coded logs (Success/Error/Warning/Info)
@@ -89,12 +114,13 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 ### 🔧 **Advanced Features**
 
 - 🔄 Retry logic với exponential backoff
-- 🧵 Thread pool cho background operations
-- 📝 Comprehensive logging system
+- 🧵 Thread pool cho background operations (ThreadPoolExecutor) 🆕
+- 📝 Comprehensive logging system với timestamps 🆕
 - 🔍 Input validation và error handling
 - 💪 Robust error recovery
 - 📊 Statistics và analytics
 - 🔐 Safe cleanup on exit
+- 🧹 Clean codebase - 55% fewer files 🆕
 
 ---
 
