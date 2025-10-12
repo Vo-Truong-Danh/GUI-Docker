@@ -6,10 +6,25 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 import threading
 import queue
+import subprocess
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import webbrowser
 import os
+from pathlib import Path
+
+# Import backend logic
+from spark_backend import (
+    generate_commands,
+    copy_file_to_container,
+    submit_spark_job,
+    auto_run_spark_job,
+    docker_compose_command,
+    get_container_status,
+    get_docker_compose_status,
+    force_kill_spark_jobs
+)
 
 
 class CleanButton(tk.Frame):
@@ -468,6 +483,32 @@ class SparkRunnerTabV4:
                                highlightthickness=1, highlightbackground='#D0D7DE')
         master_entry.pack(fill=tk.X, ipady=4, pady=(0, 8))
         
+        # Docker Compose file path
+        tk.Label(cc, text='Docker Compose:', font=('Segoe UI', 9),
+                bg='#FFFFFF', fg='#57606A').pack(anchor='w', pady=(0, 4))
+        
+        compose_frame = tk.Frame(cc, bg='#FFFFFF')
+        compose_frame.pack(fill=tk.X, pady=(0, 8))
+        
+        self.compose_var = tk.StringVar(value=self.config.get('compose_file', 'docker-compose.yml'))
+        compose_entry = tk.Entry(
+            compose_frame, textvariable=self.compose_var,
+            font=('Segoe UI', 8), bg='#FFFFFF',
+            relief=tk.SOLID, borderwidth=1,
+            highlightthickness=1, highlightbackground='#D0D7DE'
+        )
+        compose_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
+        
+        # Browse button for compose file
+        browse_compose_btn = tk.Button(
+            compose_frame, text='📂',
+            font=('Segoe UI', 8), bg='#F6F8FA', fg='#24292F',
+            relief=tk.FLAT, cursor='hand2',
+            padx=6, pady=2,
+            command=self.browse_compose_file
+        )
+        browse_compose_btn.pack(side=tk.LEFT, padx=(4, 0))
+        
         # Buttons - Full width
         cfg_btn_row = tk.Frame(cc, bg='#FFFFFF')
         cfg_btn_row.pack(fill=tk.X)
@@ -581,10 +622,8 @@ class SparkRunnerTabV4:
             self.log_text_widget.see(tk.END)
     
     def append_log(self, message, tag='normal'):
-        """Queue log message"""
+        """Queue log message - only write to local log, no callback to avoid duplicates"""
         self.log_queue.put((message, tag))
-        if 'append_log' in self.callbacks:
-            self.callbacks['append_log'](message, tag, self.log_text_widget)
     
     # Event handlers
     def on_browse(self):
@@ -607,76 +646,492 @@ class SparkRunnerTabV4:
             self.append_log(f'Loaded from history: {os.path.basename(selected)}', 'info')
     
     def on_generate(self):
-        if not self.file_var.get():
+        """Generate Spark commands"""
+        filepath = self.file_var.get().strip()
+        if not filepath:
             messagebox.showwarning('No File Selected', 
                                  'Please select a Python file first.')
             return
-        self.append_log('Generating Spark commands...', 'header')
+        
+        container = self.container_var.get()
+        master = self.master_var.get()
+        
+        # Generate commands using backend
+        commands = generate_commands(filepath, container, master)
+        self.cmd_text.delete('1.0', tk.END)
+        self.cmd_text.insert(tk.END, commands)
+        
+        self.append_log(f'📝 Generated commands for: {Path(filepath).name}', 'success')
+        if 'update_status' in self.callbacks:
+            self.callbacks['update_status']('📝 Commands generated')
     
     def on_auto_run(self):
-        if not self.file_var.get():
+        """Auto run Spark job"""
+        filepath = self.file_var.get().strip()
+        if not filepath:
             messagebox.showwarning('No File Selected',
                                  'Please select a Python file first.')
             return
-        self.append_log('Starting automated job execution...', 'header')
+        
+        if not os.path.exists(filepath):
+            messagebox.showerror('File Not Found',
+                               f'File does not exist:\n{filepath}')
+            return
+        
+        # Add to history
+        if 'add_to_history' in self.callbacks:
+            self.callbacks['add_to_history'](self.config, filepath)
+            self.history_combo['values'] = self.config.get('history', [])
+        
+        # Run in thread
+        self.is_running = True
         self.progress.start(10)
+        
+        def run_job():
+            container = self.container_var.get()
+            master = self.master_var.get()
+            
+            success = auto_run_spark_job(
+                filepath, container, master,
+                log_callback=self.append_log,
+                stop_check=lambda: not self.is_running
+            )
+            
+            self.progress.stop()
+            
+            if success:
+                if 'update_status' in self.callbacks:
+                    self.callbacks['update_status']('✅ Job completed')
+            else:
+                if 'update_status' in self.callbacks:
+                    self.callbacks['update_status']('❌ Job failed')
+        
+        self.thread_pool.submit(run_job)
     
     def on_step1(self):
-        self.append_log('Step 1: Copying file to container...', 'info')
+        """Step 1: Copy file to container"""
+        filepath = self.file_var.get().strip()
+        if not filepath:
+            messagebox.showwarning('No File', 'Please select a file first.')
+            return
+        
+        container = self.container_var.get()
+        
+        def run_step1():
+            copy_file_to_container(filepath, container, self.append_log)
+        
+        self.thread_pool.submit(run_step1)
     
     def on_step2(self):
-        self.append_log('Step 2: Opening bash in container...', 'info')
+        """Step 2: Open bash in container"""
+        container = self.container_var.get()
+        self.append_log(f'💡 To open bash manually, run:', 'info')
+        self.append_log(f'   docker exec -it {container} bash', 'info')
+        
+        # Try to open in new terminal
+        import subprocess
+        import sys
+        
+        if sys.platform == 'win32':
+            # Windows - open in new cmd window
+            cmd = f'start cmd /k docker exec -it {container} bash'
+            subprocess.Popen(cmd, shell=True)
+            self.append_log('✅ Opened bash in new terminal window', 'success')
+        else:
+            self.append_log('⚠️ Auto-open only supported on Windows', 'warning')
     
     def on_step3(self):
-        self.append_log('Step 3: Submitting Spark job...', 'info')
+        """Step 3: Submit Spark job"""
+        filepath = self.file_var.get().strip()
+        if not filepath:
+            messagebox.showwarning('No File', 'Please select a file first.')
+            return
+        
+        container = self.container_var.get()
+        master = self.master_var.get()
+        filename = Path(filepath).name
+        
+        def run_step3():
+            self.progress.start(10)
+            submit_spark_job(container, master, filename, self.append_log, timeout=300)
+            self.progress.stop()
+        
+        self.thread_pool.submit(run_step3)
     
     def on_stop(self):
-        self.append_log('Stopping Spark job...', 'warning')
+        """Stop current job"""
+        self.is_running = False
+        self.append_log('⏹️ Stopping job...', 'warning')
         self.progress.stop()
+        if 'update_status' in self.callbacks:
+            self.callbacks['update_status']('⏹️ Stopped')
     
     def force_kill(self):
-        if messagebox.askyesno('Confirm Force Kill',
-                              'Force kill all Spark processes?'):
-            self.append_log('Force killing all processes...', 'error')
+        """Force kill all Spark processes"""
+        if not messagebox.askyesno('Confirm Force Kill',
+                              'Force kill all Spark processes in container?'):
+            return
+        
+        container = self.container_var.get()
+        
+        def run_kill():
+            force_kill_spark_jobs(container, self.append_log)
+        
+        self.thread_pool.submit(run_kill)
     
     def docker_start(self):
-        self.append_log('Starting Docker containers...', 'header')
+        """Start Docker containers"""
+        compose_file = self.config.get('compose_file')
+        
+        # Validate compose file exists
+        if not os.path.exists(compose_file):
+            self.append_log(f'❌ Docker Compose file not found: {compose_file}', 'error')
+            messagebox.showerror(
+                'File Not Found',
+                f'Docker Compose file not found:\n{compose_file}\n\n'
+                'Please check the path in Config section or\n'
+                'use Browse button to select the correct file.'
+            )
+            return
+        
+        self.append_log('🐳 Starting Docker containers...', 'header')
+        self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
         self.docker_status_badge.update_status('Starting...', 'info')
+        
+        def run_start():
+            # PROACTIVE CLEANUP: Check for existing containers BEFORE first attempt
+            self.append_log('🔍 Checking for existing containers...', 'info')
+            try:
+                # Get all container names
+                result = subprocess.run(
+                    'docker ps -a --format "{{.Names}}"',
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0 and result.stdout.strip():
+                    existing_containers = result.stdout.strip().split('\n')
+                    self.append_log(f'📋 Found {len(existing_containers)} existing containers', 'info')
+                    
+                    # Remove all existing containers proactively
+                    self.append_log('🧹 Proactive cleanup: removing all existing containers...', 'warning')
+                    for container in existing_containers:
+                        cmd = f'docker rm -f {container.strip()}'
+                        subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
+                    self.append_log('✅ All existing containers removed', 'success')
+                else:
+                    self.append_log('✅ No existing containers found', 'success')
+            except Exception as e:
+                self.append_log(f'⚠️ Cleanup check failed: {e}', 'warning')
+            
+            # First attempt
+            returncode, stdout, stderr = docker_compose_command('up', compose_file, self.append_log)
+            
+            # Check for name conflict - Auto clean and retry
+            if returncode != 0 and stderr and 'already in use' in stderr:
+                self.append_log('⚠️ Detected container name conflict', 'warning')
+                self.append_log('💡 Old containers still exist, auto-cleaning...', 'info')
+                
+                # Extract container names from error message using multiple patterns
+                container_names = set()  # Use set to avoid duplicates
+                
+                # Pattern 1: container name "/namenode"
+                pattern1 = re.findall(r'container name "(/[^"]+)"', stderr)
+                container_names.update(pattern1)
+                
+                # Pattern 2: Container namenode  Creating/Error
+                pattern2 = re.findall(r'Container\s+(\S+)\s+(?:Creating|Error)', stderr)
+                container_names.update(['/' + name for name in pattern2])
+                
+                # Pattern 3: From "already in use by container" context
+                # Look for container names before "Creating" or "Error"
+                lines = stderr.split('\n')
+                for line in lines:
+                    if 'Creating' in line or 'Error' in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 2 and parts[0] == 'Container':
+                            container_names.add('/' + parts[1])
+                
+                container_names = list(container_names)  # Convert back to list
+                
+                if container_names:
+                    self.append_log(f'🔍 Found conflicting containers: {", ".join(container_names)}', 'info')
+                    self.append_log('🧹 Force removing containers...', 'warning')
+                    
+                    # Force remove each container
+                    for container in container_names:
+                        container_name = container.lstrip('/')  # Remove leading /
+                        cmd = f'docker rm -f {container_name}'
+                        self.append_log(f'💻 $ {cmd}', 'normal')
+                        
+                        try:
+                            result = subprocess.run(
+                                cmd,
+                                shell=True,
+                                capture_output=True,
+                                text=True,
+                                timeout=30
+                            )
+                            if result.returncode == 0:
+                                self.append_log(f'✅ Removed: {container_name}', 'success')
+                            else:
+                                self.append_log(f'⚠️ Failed to remove {container_name}: {result.stderr}', 'warning')
+                        except Exception as e:
+                            self.append_log(f'❌ Error removing {container_name}: {e}', 'error')
+                    
+                    # Also run compose down to clean networks/volumes
+                    self.append_log('🧹 Cleaning networks and volumes...', 'info')
+                    docker_compose_command('down', compose_file, self.append_log)
+                    
+                    self.append_log('✅ Cleanup completed', 'success')
+                    self.append_log('🔄 Retrying start...', 'info')
+                    
+                    # Retry start
+                    returncode, stdout, stderr = docker_compose_command('up', compose_file, self.append_log)
+                    
+                    if returncode == 0:
+                        self.append_log('✅ Docker containers started successfully', 'success')
+                        self.docker_status_badge.update_status('Running', 'success')
+                        return
+                    else:
+                        self.append_log(f'❌ Failed to start after cleanup', 'error')
+                        if stderr:
+                            self.append_log(f'Error: {stderr}', 'error')
+                else:
+                    self.append_log('❌ Could not extract container names from error', 'error')
+                
+                self.docker_status_badge.update_status('Error', 'error')
+                return
+            
+            if returncode == 0:
+                self.append_log('✅ Docker containers started successfully', 'success')
+                self.docker_status_badge.update_status('Running', 'success')
+            else:
+                self.append_log(f'❌ Failed to start containers', 'error')
+                if stderr:
+                    self.append_log(f'Error: {stderr}', 'error')
+                self.docker_status_badge.update_status('Error', 'error')
+        
+        self.thread_pool.submit(run_start)
     
     def docker_stop(self):
-        self.append_log('Stopping Docker containers...', 'warning')
+        """Stop Docker containers"""
+        compose_file = self.config.get('compose_file')
+        
+        # Validate compose file exists
+        if not os.path.exists(compose_file):
+            self.append_log(f'❌ Docker Compose file not found: {compose_file}', 'error')
+            messagebox.showerror(
+                'File Not Found',
+                f'Docker Compose file not found:\n{compose_file}\n\n'
+                'Please check the path in Config section or\n'
+                'use Browse button to select the correct file.'
+            )
+            return
+        
+        self.append_log('🐳 Stopping Docker containers...', 'warning')
+        self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
         self.docker_status_badge.update_status('Stopping...', 'warning')
+        
+        def run_stop():
+            returncode, stdout, stderr = docker_compose_command('stop', compose_file, self.append_log)
+            
+            if returncode == 0:
+                self.append_log('✅ Docker containers stopped', 'success')
+                self.docker_status_badge.update_status('Stopped', 'default')
+            else:
+                self.append_log(f'❌ Failed to stop containers', 'error')
+                if stderr:
+                    self.append_log(f'Error: {stderr}', 'error')
+                self.docker_status_badge.update_status('Error', 'error')
+        
+        self.thread_pool.submit(run_stop)
     
     def docker_restart(self):
-        self.append_log('Restarting Docker containers...', 'info')
+        """Restart Docker containers"""
+        compose_file = self.config.get('compose_file')
+        
+        # Validate compose file exists
+        if not os.path.exists(compose_file):
+            self.append_log(f'❌ Docker Compose file not found: {compose_file}', 'error')
+            messagebox.showerror(
+                'File Not Found',
+                f'Docker Compose file not found:\n{compose_file}\n\n'
+                'Please check the path in Config section or\n'
+                'use Browse button to select the correct file.'
+            )
+            return
+        
+        self.append_log('🐳 Restarting Docker containers...', 'info')
+        self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
         self.docker_status_badge.update_status('Restarting...', 'info')
+        
+        def run_restart():
+            returncode, stdout, stderr = docker_compose_command('restart', compose_file, self.append_log)
+            
+            if returncode == 0:
+                self.append_log('✅ Docker containers restarted', 'success')
+                self.docker_status_badge.update_status('Running', 'success')
+            else:
+                self.append_log(f'❌ Failed to restart containers', 'error')
+                if stderr:
+                    self.append_log(f'Error: {stderr}', 'error')
+                self.docker_status_badge.update_status('Error', 'error')
+        
+        self.thread_pool.submit(run_restart)
     
     def docker_status(self, silent=False):
+        """Check Docker container status"""
         if not silent:
-            self.append_log('Checking Docker status...', 'info')
-        self.docker_status_badge.update_status('Running', 'success')
+            self.append_log('🔍 Checking Docker status...', 'info')
+        
+        def check_status():
+            container = self.container_var.get()
+            status = get_container_status(container)
+            
+            if status == 'running':
+                if not silent:
+                    self.append_log(f'✅ Container "{container}" is running', 'success')
+                self.docker_status_badge.update_status('Running', 'success')
+            elif status == 'exited':
+                if not silent:
+                    self.append_log(f'⚠️ Container "{container}" has exited', 'warning')
+                self.docker_status_badge.update_status('Exited', 'warning')
+            elif status == 'not_found':
+                if not silent:
+                    self.append_log(f'❌ Container "{container}" not found', 'error')
+                self.docker_status_badge.update_status('Not Found', 'error')
+            else:
+                if not silent:
+                    self.append_log(f'⚠️ Container status: {status}', 'warning')
+                self.docker_status_badge.update_status(status.capitalize(), 'warning')
+        
+        self.thread_pool.submit(check_status)
     
     def docker_build(self):
-        self.append_log('Building Docker images...', 'info')
+        """Build Docker images"""
+        compose_file = self.config.get('compose_file')
+        
+        # Validate compose file exists
+        if not os.path.exists(compose_file):
+            self.append_log(f'❌ Docker Compose file not found: {compose_file}', 'error')
+            messagebox.showerror(
+                'File Not Found',
+                f'Docker Compose file not found:\n{compose_file}\n\n'
+                'Please check the path in Config section or\n'
+                'use Browse button to select the correct file.'
+            )
+            return
+        
+        self.append_log('🔨 Building Docker images...', 'info')
+        self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
+        
+        def run_build():
+            returncode, stdout, stderr = docker_compose_command('build', compose_file, self.append_log)
+            
+            if stdout:
+                self.append_log(stdout.strip(), 'normal')
+            
+            if returncode == 0:
+                self.append_log('✅ Docker images built successfully', 'success')
+            else:
+                self.append_log(f'❌ Build failed', 'error')
+                if stderr:
+                    self.append_log(f'Error: {stderr}', 'error')
+        
+        self.thread_pool.submit(run_build)
     
     def docker_clean(self):
-        if messagebox.askyesno('Confirm Clean',
-                              'Remove all containers and volumes?'):
-            self.append_log('Cleaning Docker resources...', 'warning')
+        """Clean Docker resources"""
+        compose_file = self.config.get('compose_file')
+        
+        # Validate compose file exists
+        if not os.path.exists(compose_file):
+            self.append_log(f'❌ Docker Compose file not found: {compose_file}', 'error')
+            messagebox.showerror(
+                'File Not Found',
+                f'Docker Compose file not found:\n{compose_file}\n\n'
+                'Please check the path in Config section or\n'
+                'use Browse button to select the correct file.'
+            )
+            return
+        
+        if not messagebox.askyesno('Confirm Clean',
+                              'This will stop and remove all containers and volumes.\nContinue?'):
+            return
+        
+        self.append_log('🧹 Cleaning Docker resources...', 'warning')
+        self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
+        
+        def run_clean():
+            returncode, stdout, stderr = docker_compose_command('down', compose_file, self.append_log)
+            
+            if returncode == 0:
+                self.append_log('✅ Docker resources cleaned', 'success')
+                self.docker_status_badge.update_status('Cleaned', 'default')
+            else:
+                self.append_log(f'❌ Clean failed', 'error')
+                if stderr:
+                    self.append_log(f'Error: {stderr}', 'error')
+        
+        self.thread_pool.submit(run_clean)
     
     def on_save_config(self):
+        """Save configuration including docker-compose path"""
         self.config['container'] = self.container_var.get()
         self.config['master'] = self.master_var.get()
+        self.config['compose_file'] = self.compose_var.get()
+        
         if 'save_config' in self.callbacks:
             self.callbacks['save_config'](self.config)
-        self.append_log('Configuration saved successfully', 'success')
+        
+        self.append_log('✅ Configuration saved successfully', 'success')
+        self.append_log(f'  • Container: {self.config["container"]}', 'info')
+        self.append_log(f'  • Master: {self.config["master"]}', 'info')
+        self.append_log(f'  • Docker Compose: {self.config["compose_file"]}', 'info')
+    
+    def browse_compose_file(self):
+        """Browse for docker-compose.yml file"""
+        from tkinter import filedialog
+        
+        initial_dir = os.path.dirname(self.compose_var.get()) or os.getcwd()
+        
+        filepath = filedialog.askopenfilename(
+            title='Select docker-compose.yml',
+            initialdir=initial_dir,
+            filetypes=[
+                ('Docker Compose files', 'docker-compose.yml docker-compose.yaml'),
+                ('YAML files', '*.yml *.yaml'),
+                ('All files', '*.*')
+            ]
+        )
+        
+        if filepath:
+            self.compose_var.set(filepath)
+            self.config['compose_file'] = filepath
+            self.append_log(f'📄 Selected Docker Compose file: {os.path.basename(filepath)}', 'success')
+            
+            # Validate file exists
+            if os.path.exists(filepath):
+                self.append_log(f'✅ File exists and is accessible', 'success')
+            else:
+                self.append_log(f'⚠️ Warning: File does not exist yet', 'warning')
     
     def reset_config(self):
+        """Reset configuration to defaults"""
         if messagebox.askyesno('Confirm Reset',
                               'Reset all settings to default values?'):
+            # Get default compose file path
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            default_compose = os.path.join(script_dir, 'docker-compose.yml')
+            
             self.container_var.set('spark-worker')
             self.master_var.set('spark://spark-master:7077')
-            self.append_log('Configuration reset to defaults', 'info')
+            self.compose_var.set(default_compose)
+            
+            self.append_log('↺ Configuration reset to defaults', 'info')
     
     def open_spark_ui(self):
         webbrowser.open('http://localhost:8080')
@@ -699,6 +1154,106 @@ class SparkRunnerTabV4:
     def clear_log(self):
         self.log_text_widget.delete('1.0', tk.END)
         self.append_log('Log cleared', 'info')
+    
+    def show_help(self):
+        """Show help dialog"""
+        help_text = """
+        🚀 SPARK RUNNER GUI - HELP
+        
+        📋 QUICK START:
+        1. Select a Python file (Browse or drag-drop)
+        2. Click "Generate" to create Docker commands
+        3. Click "Run" to execute automatically
+        
+        ⌨️ KEYBOARD SHORTCUTS:
+        • Ctrl+O - Open file
+        • Ctrl+R - Run job
+        • F5 - Generate commands
+        • Ctrl+S - Export log
+        • Ctrl+L - Clear log
+        • F1 - Show this help
+        • Esc - Stop job
+        
+        🐳 DOCKER COMMANDS:
+        • Start - Start all containers
+        • Stop - Stop all containers
+        • Restart - Restart containers
+        • Status - Check container status
+        • Build - Rebuild images
+        • Clean - Remove all containers
+        
+        ⚡ SPARK JOB STEPS:
+        1. Copy - Copy file to container
+        2. Bash - Open container shell
+        3. Submit - Run Spark job
+        
+        💡 TIPS:
+        • Use "Auto Run" for one-click execution
+        • Check Docker status before running
+        • Export logs for debugging
+        • Use Force Kill for stuck processes
+        """
+        messagebox.showinfo('Help - Spark Runner GUI', help_text)
+    
+    def show_about(self):
+        """Show about dialog"""
+        about_text = f"""
+        Spark Runner GUI V4.1
+        Clean Professional Edition
+        
+        A modern, elegant interface for Apache Spark
+        with Docker integration.
+        
+        Features:
+        • Automated Spark job execution
+        • Docker container management
+        • Real-time log streaming
+        • HDFS file upload
+        • AI code generation
+        • Performance monitoring
+        • Docker Compose editor
+        
+        © 2025 - Built with ❤️
+        """
+        messagebox.showinfo('About', about_text)
+    
+    def show_shortcuts(self):
+        """Show keyboard shortcuts"""
+        shortcuts_text = """
+        ⌨️ KEYBOARD SHORTCUTS
+        
+        FILE OPERATIONS:
+        • Ctrl+O - Open file
+        • Ctrl+S - Export log
+        • Ctrl+L - Clear log
+        
+        JOB EXECUTION:
+        • Ctrl+R - Auto run job
+        • F5 - Generate commands
+        • Esc - Stop current job
+        
+        HELP:
+        • F1 - Show help
+        
+        NAVIGATION:
+        • Alt+1-5 - Switch tabs
+        • Ctrl+Tab - Next tab
+        """
+        messagebox.showinfo('Keyboard Shortcuts', shortcuts_text)
+    
+    def refresh_history(self):
+        """Refresh file history"""
+        if hasattr(self, 'history_combo'):
+            self.history_combo['values'] = self.config.get('history', [])
+            self.append_log('History refreshed', 'info')
+    
+    def clear_history(self):
+        """Clear file history"""
+        if messagebox.askyesno('Clear History', 'Clear all file history?'):
+            self.config['history'] = []
+            if hasattr(self, 'history_combo'):
+                self.history_combo['values'] = []
+            self.append_log('History cleared', 'info')
     
     def cleanup(self):
         self.thread_pool.shutdown(wait=False)

@@ -12,18 +12,27 @@ from datetime import datetime
 
 # Import V4 Clean Professional Design for all tabs
 try:
+    print("🔄 Loading Spark Runner Tab V4...")
     from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
+    print("🔄 Loading HDFS Upload Tab V4...")
     from hdfs_upload_tab_v4_clean import HDFSUploadTabV4Clean as HDFSUploadTab
+    print("🔄 Loading AI Code Generator Tab V4...")
     from ai_code_generator_tab_v4_clean import AICodeGeneratorTabV4Clean as AICodeGeneratorTab
+    print("🔄 Loading Performance Monitor V4...")
     from performance_monitor_v4_clean import PerformanceMonitorV4Clean as PerformanceMonitor
+    print("🔄 Loading Docker Compose Editor V4...")
+    from docker_compose_editor_v4 import DockerComposeEditorV4
     print("✅ Using Clean Professional UI V4 (all tabs)")
 except ImportError as e:
     print(f"⚠️ V4 Clean import failed: {e}")
+    import traceback
+    traceback.print_exc()
     try:
         from spark_runner_tab import SparkRunnerTab
         from hdfs_upload_tab_modern import HDFSUploadTabModern as HDFSUploadTab
         from ai_code_generator_tab import AICodeGeneratorTab
         from performance_monitor import PerformanceMonitor
+        DockerComposeEditorV4 = None  # Fallback
         print("⚠️ Using fallback UI (original)")
     except ImportError:
         print("❌ No UI modules found!")
@@ -194,11 +203,97 @@ class App:
         # Tab 4: Performance Monitor
         self.perf_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.perf_tab, text='📊 Performance Monitor')
+        
+        # Tab 5: Docker Compose Editor
+        self.compose_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.compose_tab, text='🐳 Docker Compose')
 
-        # Status bar
+        # Enhanced Status bar with multiple sections
+        status_frame = tk.Frame(root, bg='#F0F0F0', relief=tk.SUNKEN, borderwidth=1)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Status message (left)
         self.status_var = tk.StringVar(value="✅ Ready")
-        status_bar = ttk.Label(root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, font=('Segoe UI', 8))
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        status_label = tk.Label(
+            status_frame, 
+            textvariable=self.status_var,
+            bg='#F0F0F0', fg='#24292F',
+            font=('Segoe UI', 8),
+            anchor=tk.W,
+            padx=8, pady=2
+        )
+        status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Separator
+        ttk.Separator(status_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        # Docker status (middle-left)
+        self.docker_status_var = tk.StringVar(value="🐳 Docker: Checking...")
+        docker_status_label = tk.Label(
+            status_frame,
+            textvariable=self.docker_status_var,
+            bg='#F0F0F0', fg='#0969DA',
+            font=('Segoe UI', 8, 'bold'),
+            padx=8, pady=2
+        )
+        docker_status_label.pack(side=tk.LEFT)
+        
+        # Separator
+        ttk.Separator(status_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        # Active tab indicator (middle-right)
+        self.active_tab_var = tk.StringVar(value="📑 Tab: Spark Runner")
+        tab_label = tk.Label(
+            status_frame,
+            textvariable=self.active_tab_var,
+            bg='#F0F0F0', fg='#57606A',
+            font=('Segoe UI', 8),
+            padx=8, pady=2
+        )
+        tab_label.pack(side=tk.LEFT)
+        
+        # Separator
+        ttk.Separator(status_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        # Time indicator (right)
+        self.time_var = tk.StringVar(value=datetime.now().strftime("%H:%M:%S"))
+        time_label = tk.Label(
+            status_frame,
+            textvariable=self.time_var,
+            bg='#F0F0F0', fg='#57606A',
+            font=('Segoe UI', 8),
+            padx=8, pady=2
+        )
+        time_label.pack(side=tk.RIGHT)
+        
+        # Separator
+        ttk.Separator(status_frame, orient='vertical').pack(side=tk.RIGHT, fill=tk.Y, padx=2)
+        
+        # Version info (right)
+        version_label = tk.Label(
+            status_frame,
+            text=f"v{VERSION}",
+            bg='#F0F0F0', fg='#57606A',
+            font=('Segoe UI', 8),
+            padx=8, pady=2
+        )
+        version_label.pack(side=tk.RIGHT)
+        
+        # Update time every second
+        def update_time():
+            self.time_var.set(datetime.now().strftime("%H:%M:%S"))
+            root.after(1000, update_time)
+        update_time()
+        
+        # Track active tab changes
+        def on_tab_changed(event):
+            tab_names = ['Spark Runner', 'HDFS Upload', 'AI Code Generator', 
+                        'Performance Monitor', 'Docker Compose']
+            current_tab = self.notebook.index(self.notebook.select())
+            if current_tab < len(tab_names):
+                self.active_tab_var.set(f"📑 Tab: {tab_names[current_tab]}")
+        
+        self.notebook.bind('<<NotebookTabChanged>>', on_tab_changed)
         
         # Initialize Spark Runner Tab
         # Create theme dictionary for backward compatibility
@@ -241,8 +336,7 @@ class App:
         self.spark_runner.root = root # Pass root for dialogs/clipboard
         self.spark_runner.app_instance = self  # Pass app instance for callbacks
         
-        # Start log processor after root is set
-        self.spark_runner._start_log_processor()
+        # Note: _start_log_processor() is already called in SparkRunnerTabV4.__init__
         
         # Start auto-save timer
         self.start_auto_save_timer()
@@ -269,14 +363,62 @@ class App:
             log_callback=self.append_log
         )
         
+        # Initialize Docker Compose Editor with error handling
+        if DockerComposeEditorV4:
+            try:
+                print("🔄 Initializing Docker Compose Editor...")
+                self.compose_editor = DockerComposeEditorV4(
+                    parent_frame=self.compose_tab,
+                    config=self.config,
+                    status_callback=self.update_status,
+                    log_callback=self.append_log
+                )
+                print("✅ Docker Compose Editor initialized")
+            except Exception as e:
+                print(f"⚠️ Docker Compose Editor initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Create fallback message in tab
+                error_label = tk.Label(
+                    self.compose_tab,
+                    text=f"❌ Docker Compose Editor failed to load:\n{str(e)}\n\nPlease check console for details.",
+                    font=('Segoe UI', 10),
+                    fg='#CF222E',
+                    bg='#FFFFFF',
+                    justify=tk.LEFT,
+                    padx=20, pady=20
+                )
+                error_label.pack(fill=tk.BOTH, expand=True)
+        else:
+            # Create message if module not available
+            info_label = tk.Label(
+                self.compose_tab,
+                text="⚠️ Docker Compose Editor module not available.\n\nPlease check if docker_compose_editor_v4.py exists.",
+                font=('Segoe UI', 10),
+                fg='#9A6700',
+                bg='#FFFFFF',
+                justify=tk.LEFT,
+                padx=20, pady=20
+            )
+            info_label.pack(fill=tk.BOTH, expand=True)
+        
         self.setup_shortcuts()
-
-        # Welcome message
+        
+        # Welcome message - THIS MARKS UI AS READY
+        print("=" * 60)
+        print("🎉 GUI READY! Application window should be visible now.")
+        print("=" * 60)
+        print("If you don't see the window:")
+        print("  1. Check taskbar for 'Spark Runner GUI V4.1'")
+        print("  2. Press Alt+Tab to switch windows")
+        print("  3. Window might be behind other windows")
+        print("=" * 60)
+        
         self.append_log('🎉 Chào mừng đến với Spark Runner GUI!', 'header', self.spark_runner.log_text_widget)
         self.append_log('💡 Nhấn F1 để xem trợ giúp, Ctrl+O để mở file, Ctrl+R để chạy', 'info', self.spark_runner.log_text_widget)
         
-        # Auto-check Docker status on startup (silent mode - no logs)
-        self.root.after(1000, lambda: self.spark_runner.docker_status(silent=True))
+        # Auto-check Docker status on startup and update status bar
+        self.root.after(1000, self.check_docker_status_startup)
 
         # Initialize file history
         if self.config['history']:
@@ -358,8 +500,32 @@ class App:
         self.root.bind('<Escape>', lambda e: self.spark_runner.on_stop())
 
     def update_status(self, message):
-        """Update status bar message"""
+        """Update main status bar message"""
         self.status_var.set(message)
+    
+    def update_docker_status(self, status_text, color='#57606A'):
+        """Update Docker status in status bar"""
+        if hasattr(self, 'docker_status_var'):
+            self.docker_status_var.set(f"🐳 Docker: {status_text}")
+    
+    def check_docker_status_startup(self):
+        """Check Docker status on startup and update status bar"""
+        def check():
+            from spark_backend import get_container_status
+            container = self.config.get('container', 'spark-worker')
+            status = get_container_status(container)
+            
+            if status == 'running':
+                self.update_docker_status('✅ Running', '#1A7F37')
+            elif status == 'exited':
+                self.update_docker_status('⚠️ Stopped', '#9A6700')
+            elif status == 'not_found':
+                self.update_docker_status('❌ Not Found', '#CF222E')
+            else:
+                self.update_docker_status(f'⚠️ {status}', '#9A6700')
+        
+        import threading
+        threading.Thread(target=check, daemon=True).start()
 
     def append_log(self, s: str, tag='normal', log_widget=None):
         """Append message to a specific log widget with color tag"""

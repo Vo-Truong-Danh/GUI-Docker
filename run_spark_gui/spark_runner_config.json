@@ -4,8 +4,12 @@
   "hdfs_container": "namenode",
   "hdfs_host": "hdfs://namenode:8020",
   "hdfs_default_path": "/input",
-  "history": [],
+  "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/demsoluong20tunhieunhat.py"
+  ],
   "auto_extract_archives": true,
   "delete_archive_after_extract": true,
-  "compose_file": "D:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\docker-compose.yml"
+  "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
+  "hdfs_path": "/input",
+  "auto_extract": true
 }

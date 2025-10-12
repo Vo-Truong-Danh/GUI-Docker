@@ -1,6 +1,6 @@
-# 🚀 Spark Runner GUI V4.1 - Clean Professional Edition
+# 🚀 Spark Runner GUI V4.2.7 - Clean Professional Edition
 
-![Version](https://img.shields.io/badge/version-4.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.2.7-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![UI](https://img.shields.io/badge/UI-Clean%20Professional-purple.svg)
 ![Status](https://img.shields.io/badge/status-production-success.svg)
@@ -8,6 +8,11 @@
 **Modern, clean, and professional GUI for managing Apache Spark jobs on Docker containers.**
 
 Inspired by GitHub, VS Code, and Notion - designed for developers who value simplicity and efficiency.
+
+> **🔧 New in v4.2.7:** HDFS path fix - Files now upload to correct directory with verification!  
+> **🔧 New in v4.2.4:** Enhanced logging & config management - See everything that's happening!  
+> **🔧 New in v4.2.3:** HDFS Upload fixed - ThreadPoolExecutor for reliable uploads!  
+> **🔥 New in v4.2.2:** Proactive cleanup - Always works in ONE attempt!
 
 ---
 
@@ -37,11 +42,13 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - ✅ **Auto Run Mode**: Tự động copy file và submit Spark job
 - ✅ **Step-by-Step Execution**: Chạy từng bước thủ công
 - ✅ **Docker Management**: Start/Stop/Restart containers
+- ✅ **Smart Conflict Detection**: Tự động phát hiện & giải quyết container name conflicts 🆕
 - ✅ **Real-time Logs**: Xem output và errors trực tiếp
 - ✅ **File History**: Lưu lịch sử 10 files gần nhất
 - ✅ **Command Generation**: Tạo Docker commands tự động
-- ✅ **Compose File Editor**: Chỉnh sửa docker-compose.yml
+- ✅ **Compose File Editor**: Chỉnh sửa docker-compose.yml với validation 🆕
 - ✅ **Docker Status Monitor**: Kiểm tra trạng thái containers
+- ✅ **Path Management**: Quản lý đường dẫn docker-compose file với browse button 🆕
 
 #### 📤 **HDFS Upload Tab**
 - ✅ Upload nhiều files cùng lúc
