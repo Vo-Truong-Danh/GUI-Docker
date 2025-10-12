@@ -502,18 +502,45 @@ class HDFSUploadTabV4Clean:
             # Always log to text widget
             self.log_text.insert(tk.END, full_message, tag)
             self.log_text.insert(tk.END, "\n" if not message.endswith("\n") else "")
-            self.log_text.see(tk.END)
+            
+            # Update line count
+            self.log_line_count += 1
+            if hasattr(self, 'log_stats_label'):
+                self.log_stats_label.config(text=f"{self.log_line_count} lines")
+            
+            # Auto-scroll if enabled
+            if hasattr(self, 'auto_scroll_var') and self.auto_scroll_var.get():
+                self.log_text.see(tk.END)
+            
             self.log_text.update_idletasks()  # Force update
             
             # Also log to main log if callback exists
             if self.append_log:
                 self.append_log(full_message)
+                
         except Exception as e:
-            # Fallback - print to console
-            print(f"ERROR in log(): {str(e)}")
-            print(f"Message was: {message}")
-            import traceback
-            traceback.print_exc()
+            print(f"Log error: {e}")
+    
+    def clear_log(self):
+        """Clear all log content"""
+        try:
+            self.log_text.delete(1.0, tk.END)
+            self.log_line_count = 0
+            if hasattr(self, 'log_stats_label'):
+                self.log_stats_label.config(text="0 lines")
+            self.log("🧹 Log cleared", 'info')
+        except Exception as e:
+            print(f"Clear log error: {e}")
+    
+    def copy_log(self):
+        """Copy log content to clipboard"""
+        try:
+            log_content = self.log_text.get(1.0, tk.END)
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(log_content)
+            self.log("📋 Log copied to clipboard", 'success')
+        except Exception as e:
+            self.log(f"❌ Failed to copy log: {e}", 'error')
     
     def update_file_list(self):
         """Update file list display"""
