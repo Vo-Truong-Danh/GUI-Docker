@@ -767,6 +767,150 @@ class HDFSUploadTabV4Clean:
             self.log(f"Full traceback:\n{error_details}", 'error')
             messagebox.showerror("Error", f"Failed to start test:\n{str(e)}")
     
+    def _extract_compressed_file(self, container, filename, target_path, hdfs_path, index):
+        """
+        Extract compressed files (zip, tar.gz, tar, gz) and upload to HDFS
+        Returns True if extraction successful, False otherwise
+        """
+        filename_lower = filename.lower()
+        
+        # Determine file type and extract command
+        extract_cmd = None
+        extract_dir_name = filename
+        needs_unzip = False
+        
+        if filename_lower.endswith('.zip'):
+            # Check if unzip is available
+            check_cmd = ['docker', 'exec', container, 'which', 'unzip']
+            check_result = subprocess.run(check_cmd, capture_output=True, timeout=5)
+            
+            if check_result.returncode != 0:
+                self.log(f"      ⚠️ 'unzip' not found in container", 'warning')
+                self.log(f"      💡 Installing unzip...", 'info')
+                install_cmd = ['docker', 'exec', container, 'sh', '-c',
+                             'apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1']
+                install_result = subprocess.run(install_cmd, capture_output=True, timeout=60)
+                if install_result.returncode != 0:
+                    self.log(f"      ❌ Failed to install unzip", 'error')
+                    return False
+                self.log(f"      ✓ Unzip installed successfully", 'success')
+            
+            extract_cmd = ['docker', 'exec', container, 'unzip', '-o',
+                          f'/tmp/{filename}', '-d', f'/tmp/extracted_{index}']
+            extract_dir_name = filename.rsplit('.zip', 1)[0]
+            needs_unzip = True
+            self.log(f"      Step 2.5/4: Extracting ZIP file...", 'info')
+            
+        elif filename_lower.endswith('.tar.gz') or filename_lower.endswith('.tgz'):
+            extract_cmd = ['docker', 'exec', container, 'tar', '-xzf',
+                          f'/tmp/{filename}', '-C', f'/tmp/extracted_{index}']
+            extract_dir_name = filename.rsplit('.tar.gz', 1)[0].rsplit('.tgz', 1)[0]
+            self.log(f"      Step 2.5/4: Extracting TAR.GZ file...", 'info')
+            
+        elif filename_lower.endswith('.tar'):
+            extract_cmd = ['docker', 'exec', container, 'tar', '-xf',
+                          f'/tmp/{filename}', '-C', f'/tmp/extracted_{index}']
+            extract_dir_name = filename.rsplit('.tar', 1)[0]
+            self.log(f"      Step 2.5/4: Extracting TAR file...", 'info')
+            
+        elif filename_lower.endswith('.gz') and not filename_lower.endswith('.tar.gz'):
+            # Single .gz file (not tar.gz)
+            extract_cmd = ['docker', 'exec', container, 'sh', '-c',
+                          f'gunzip -c /tmp/{filename} > /tmp/extracted_{index}/{filename[:-3]}']
+            extract_dir_name = filename.rsplit('.gz', 1)[0]
+            self.log(f"      Step 2.5/4: Extracting GZ file...", 'info')
+        
+        if not extract_cmd:
+            # Not a compressed file or unsupported format
+            return False
+        
+        try:
+            # Create extraction directory
+            mkdir_cmd = ['docker', 'exec', container, 'mkdir', '-p', f'/tmp/extracted_{index}']
+            subprocess.run(mkdir_cmd, capture_output=True, timeout=10)
+            
+            # Extract file
+            self.log(f"      💻 Extracting {filename}...", 'normal')
+            extract_result = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=180)
+            
+            if extract_result.returncode != 0:
+                error_msg = extract_result.stderr.strip() if extract_result.stderr else "Unknown error"
+                stdout_msg = extract_result.stdout.strip() if extract_result.stdout else ""
+                
+                self.log(f"      ⚠️ Extraction failed (exit code: {extract_result.returncode})", 'warning')
+                if error_msg:
+                    self.log(f"      ⚠️ Error: {error_msg}", 'warning')
+                if stdout_msg:
+                    self.log(f"      ℹ️  Output: {stdout_msg}", 'info')
+                
+                # Cleanup
+                subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                             capture_output=True, timeout=10)
+                return False
+            
+            self.log(f"      ✓ Extracted successfully", 'success')
+            
+            # List extracted files
+            ls_cmd = ['docker', 'exec', container, 'sh', '-c', f'ls -A /tmp/extracted_{index}']
+            ls_result = subprocess.run(ls_cmd, capture_output=True, text=True, timeout=10)
+            
+            if ls_result.returncode != 0 or not ls_result.stdout.strip():
+                self.log(f"      ⚠️ No files found after extraction", 'warning')
+                subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                             capture_output=True, timeout=10)
+                return False
+            
+            extracted_files = ls_result.stdout.strip().split('\n')
+            self.log(f"      📦 Found {len(extracted_files)} file(s)/folder(s)", 'info')
+            
+            # Create HDFS directory for extracted files
+            extract_hdfs_dir = f"{hdfs_path.rstrip('/')}/{extract_dir_name}"
+            mkdir_hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-mkdir', '-p', extract_hdfs_dir]
+            subprocess.run(mkdir_hdfs_cmd, capture_output=True, timeout=30)
+            
+            # Upload each extracted file/folder to HDFS
+            self.log(f"      💻 Uploading extracted files to HDFS...", 'normal')
+            upload_success = 0
+            
+            for extracted_item in extracted_files:
+                if not extracted_item.strip():
+                    continue
+                    
+                item_path = f'/tmp/extracted_{index}/{extracted_item}'
+                hdfs_target = f'{extract_hdfs_dir}/{extracted_item}'
+                
+                put_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
+                          item_path, hdfs_target]
+                put_result = subprocess.run(put_cmd, capture_output=True, text=True, timeout=120)
+                
+                if put_result.returncode == 0:
+                    upload_success += 1
+                else:
+                    self.log(f"      ⚠️ Failed to upload: {extracted_item}", 'warning')
+            
+            if upload_success > 0:
+                self.log(f"      ✓ Uploaded {upload_success}/{len(extracted_files)} files to HDFS", 'success')
+                self.log(f"      📂 Extract Location: {extract_hdfs_dir}/", 'success')
+            else:
+                self.log(f"      ❌ No files uploaded to HDFS", 'error')
+            
+            # Cleanup extraction directory
+            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                         capture_output=True, timeout=10)
+            
+            return upload_success > 0
+            
+        except subprocess.TimeoutExpired:
+            self.log(f"      ⚠️ Extraction timeout", 'warning')
+            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                         capture_output=True, timeout=10)
+            return False
+        except Exception as e:
+            self.log(f"      ⚠️ Extraction error: {str(e)}", 'warning')
+            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                         capture_output=True, timeout=10)
+            return False
+    
     def start_upload(self):
         """Start uploading files"""
         if not self.selected_files:
@@ -848,6 +992,14 @@ class HDFSUploadTabV4Clean:
                             self.log(f"      ✓ Uploaded to HDFS", 'success')
                             self.log(f"      📍 Location: {target_path}", 'success')
                             success += 1
+                            
+                            # Step 2.5: Auto-extract compressed files
+                            if self.auto_extract_var.get():
+                                extracted = self._extract_compressed_file(
+                                    container, filename, target_path, hdfs_path, i
+                                )
+                                if not extracted:
+                                    self.log(f"      ℹ️  File uploaded without extraction", 'info')
                         else:
                             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
                             self.log(f"      ❌ HDFS upload failed: {error_msg}", 'error')
@@ -861,9 +1013,9 @@ class HDFSUploadTabV4Clean:
                         else:
                             self.log(f"      ⚠️ Warning: Could not verify file in HDFS", 'warning')
                         
-                        # Step 4: Cleanup
+                        # Step 4: Cleanup temp file on container
                         self.log(f"      Step 4/4: Cleanup temp file", 'info')
-                        subprocess.run(['docker', 'exec', container, 'rm', f'/tmp/{filename}'],
+                        subprocess.run(['docker', 'exec', container, 'rm', '-f', f'/tmp/{filename}'],
                                      capture_output=True, timeout=10)
                         self.log(f"      ✓ Cleaned up /tmp/{filename}", 'success')
                         

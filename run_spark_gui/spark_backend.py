@@ -239,6 +239,59 @@ def submit_spark_job(container, master, filename, log_callback=None, timeout=300
         return False
 
 
+def clear_hdfs_output(container, output_path, log_callback=None):
+    """
+    Clear HDFS output directory if exists
+    
+    Args:
+        container: Container name (e.g., 'namenode')
+        output_path: HDFS output path (e.g., 'hdfs://namenode:8020/output')
+        log_callback: Logging function
+        
+    Returns:
+        bool: True if cleared or not exists, False if error
+    """
+    # Extract path without hdfs:// prefix
+    if output_path.startswith('hdfs://'):
+        # Parse: hdfs://namenode:8020/output -> /output
+        parts = output_path.split('/', 3)
+        if len(parts) >= 4:
+            hdfs_dir = '/' + parts[3]
+        else:
+            hdfs_dir = '/'
+    else:
+        hdfs_dir = output_path
+    
+    if log_callback:
+        log_callback(f'→ Checking output directory: {hdfs_dir}', 'info')
+    
+    # Check if directory exists
+    check_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', hdfs_dir]
+    returncode, _, _ = run_docker_command(check_cmd, None, timeout=10)
+    
+    if returncode == 0:
+        # Directory exists, delete it
+        if log_callback:
+            log_callback(f'  ⚠️ Output directory exists, deleting...', 'warning')
+        
+        delete_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-rm', '-r', '-f', hdfs_dir]
+        returncode, stdout, stderr = run_docker_command(delete_cmd, None, timeout=30)
+        
+        if returncode == 0:
+            if log_callback:
+                log_callback(f'  ✓ Output directory cleared', 'success')
+            return True
+        else:
+            if log_callback:
+                log_callback(f'  ❌ Failed to delete: {stderr}', 'error')
+            return False
+    else:
+        # Directory doesn't exist, that's fine
+        if log_callback:
+            log_callback(f'  ✓ Output directory does not exist (OK)', 'success')
+        return True
+
+
 def auto_run_spark_job(filepath, container, master, log_callback=None, stop_check=None):
     """
     Automatically run Spark job (copy file + submit job)
@@ -262,6 +315,40 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     if not shutil.which('docker'):
         if log_callback:
             log_callback('❌ Docker not found in PATH', 'error')
+        return False
+    
+    # Step 0: Clear output directory (auto-detect from common patterns)
+    if log_callback:
+        log_callback('\n→ STEP 0: Clear previous output', 'info')
+    
+    # Try to detect output path from file
+    output_paths = []
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # Look for common output patterns
+            import re
+            # Match: saveAsTextFile("hdfs://...") or saveAsTextFile('/output')
+            matches = re.findall(r'saveAsTextFile\(["\']([^"\']+)["\']\)', content)
+            if matches:
+                output_paths = matches
+    except:
+        pass
+    
+    # Clear detected output paths
+    if output_paths:
+        for output_path in output_paths:
+            if log_callback:
+                log_callback(f'  📁 Detected output: {output_path}', 'info')
+            clear_hdfs_output('namenode', output_path, log_callback)
+    else:
+        if log_callback:
+            log_callback('  ℹ️  No output paths detected in code', 'info')
+    
+    # Check if should stop
+    if stop_check and stop_check():
+        if log_callback:
+            log_callback('⏹️ Stopped by user request', 'warning')
         return False
     
     # Step 1: Copy file
