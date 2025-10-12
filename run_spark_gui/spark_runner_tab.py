@@ -158,24 +158,23 @@ class SparkRunnerTab:
         # ========== LEFT PANEL CONTENT ==========
         
         # === File Selection Frame (Compact) ===
-        file_frame = ttk.LabelFrame(left_panel, text='📁 Chọn File Python', padding=8)
-        file_frame.pack(fill=tk.X, pady=(0, 6))
+        file_frame = ttk.LabelFrame(left_panel, text='📁 File Python', padding=6)
+        file_frame.pack(fill=tk.X, pady=(0, 4))
         
         file_input_frame = ttk.Frame(file_frame)
-        file_input_frame.pack(fill=tk.X, pady=(0, 4))
+        file_input_frame.pack(fill=tk.X, pady=(0, 3))
         
         self.file_var = tk.StringVar()
         self.file_entry = ttk.Entry(file_input_frame, textvariable=self.file_var, 
                                      font=('Consolas', 9))
-        self.file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
-        
+        self.file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
         self.file_entry.bind('<Button-3>', lambda e: self.show_file_context_menu(e))
         
-        browse_btn = ttk.Button(file_input_frame, text='📂', command=self.on_browse, width=3)
+        browse_btn = ttk.Button(file_input_frame, text='Browse...', command=self.on_browse, width=10)
         browse_btn.pack(side=tk.LEFT, padx=(0, 2))
-        create_tooltip(browse_btn, "Browse file")
+        create_tooltip(browse_btn, "Browse file (Ctrl+O)")
         
-        clear_btn = ttk.Button(file_input_frame, text='✖', command=self.clear_file, width=3)
+        clear_btn = ttk.Button(file_input_frame, text='Clear', command=self.clear_file, width=8)
         clear_btn.pack(side=tk.LEFT)
         create_tooltip(clear_btn, "Clear")
         
@@ -183,28 +182,30 @@ class SparkRunnerTab:
         history_frame = ttk.Frame(file_frame)
         history_frame.pack(fill=tk.X)
         
-        ttk.Label(history_frame, text='Lịch sử:', font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Label(history_frame, text='History:', font=('Segoe UI', 8), width=8).pack(side=tk.LEFT, padx=(0, 2))
+        
         self.history_combo = ttk.Combobox(history_frame, values=self.config.get('history', []), 
                                           state='readonly', font=('Consolas', 8))
-        self.history_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        self.history_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
         self.history_combo.bind('<<ComboboxSelected>>', self.on_history_selected)
         
         if self.config.get('history'):
             self.history_combo.current(0)
         
-        clear_history_btn = ttk.Button(history_frame, text='🗑️', 
-                                       command=self.clear_history, width=3)
+        clear_history_btn = ttk.Button(history_frame, text='Clear', 
+                                       command=self.clear_history, width=8)
         clear_history_btn.pack(side=tk.LEFT)
+        create_tooltip(clear_history_btn, "Clear history")
         
         # === Configuration Frame (Compact) ===
-        config_frame = ttk.LabelFrame(left_panel, text='⚙️ Cấu Hình', padding=8)
-        config_frame.pack(fill=tk.X, pady=(0, 6))
+        config_frame = ttk.LabelFrame(left_panel, text='⚙️ Cấu Hình', padding=6)
+        config_frame.pack(fill=tk.X, pady=(0, 4))
         
         # Row 1: Container
         row1 = ttk.Frame(config_frame)
-        row1.pack(fill=tk.X, pady=(0, 3))
+        row1.pack(fill=tk.X, pady=(0, 2))
         
-        ttk.Label(row1, text='Container:', font=('Segoe UI', 8), width=10).pack(side=tk.LEFT)
+        ttk.Label(row1, text='Container:', font=('Segoe UI', 8), width=9).pack(side=tk.LEFT)
         self.container_var = tk.StringVar(value=self.config['container'])
         container_entry = ttk.Entry(row1, textvariable=self.container_var, 
                                     font=('Consolas', 8))
@@ -214,7 +215,7 @@ class SparkRunnerTab:
         row2 = ttk.Frame(config_frame)
         row2.pack(fill=tk.X, pady=(0, 3))
         
-        ttk.Label(row2, text='Master:', font=('Segoe UI', 8), width=10).pack(side=tk.LEFT)
+        ttk.Label(row2, text='Master:', font=('Segoe UI', 8), width=9).pack(side=tk.LEFT)
         self.master_var = tk.StringVar(value=self.config['master'])
         master_entry = ttk.Entry(row2, textvariable=self.master_var, 
                                 font=('Consolas', 8))
@@ -222,218 +223,179 @@ class SparkRunnerTab:
         
         # Buttons
         btn_row = ttk.Frame(config_frame)
-        btn_row.pack(fill=tk.X, pady=(3, 0))
+        btn_row.pack(fill=tk.X)
         
-        save_config_btn = ttk.Button(btn_row, text='💾 Lưu', command=self.on_save_config, width=8)
-        save_config_btn.pack(side=tk.LEFT, padx=(0, 3))
+        save_config_btn = ttk.Button(btn_row, text='Save', command=self.on_save_config, width=10)
+        save_config_btn.pack(side=tk.LEFT, padx=(0, 2))
         
-        reset_config_btn = ttk.Button(btn_row, text='↺ Reset', command=self.reset_config, width=8)
+        reset_config_btn = ttk.Button(btn_row, text='Reset', command=self.reset_config, width=10)
         reset_config_btn.pack(side=tk.LEFT)
         
-        # === Docker Control Frame (Compact) ===
-        docker_frame = ttk.LabelFrame(left_panel, text='🐳 Docker', padding=8)
-        docker_frame.pack(fill=tk.X, pady=(0, 6))
-        
-        # === DOCKER MANAGEMENT ===
-        docker_frame = ttk.LabelFrame(left_panel, text='Docker Container Management', padding=10)
-        docker_frame.pack(fill=tk.X, pady=(0, 8))
+        # === Docker Control Frame (Optimized) ===
+        docker_frame = ttk.LabelFrame(left_panel, text='🐳 Docker Control', padding=6)
+        docker_frame.pack(fill=tk.X, pady=(0, 4))
         
         # Container Controls
-        ctrl_label = ttk.Label(docker_frame, text='Container Controls:', 
-                              font=('Segoe UI', 9, 'bold'), foreground='#4f46e5')
-        ctrl_label.pack(anchor='w', pady=(0, 5))
-        
         docker_row1 = ttk.Frame(docker_frame)
-        docker_row1.pack(fill=tk.X, pady=(0, 4))
+        docker_row1.pack(fill=tk.X, pady=(0, 2))
         
-        self.docker_start_btn = ttk.Button(docker_row1, text='START CONTAINERS', 
+        self.docker_start_btn = ttk.Button(docker_row1, text='Start', 
                                            command=self.docker_start,
-                                           style='Success.TButton')
-        self.docker_start_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.docker_start_btn, "Start all Docker containers using docker-compose up")
+                                           style='Success.TButton', width=10)
+        self.docker_start_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.docker_start_btn, "Start containers")
         
-        self.docker_stop_btn = ttk.Button(docker_row1, text='STOP CONTAINERS', 
-                                          command=self.docker_stop)
-        self.docker_stop_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        create_tooltip(self.docker_stop_btn, "Stop all running containers using docker-compose down")
+        self.docker_stop_btn = ttk.Button(docker_row1, text='Stop', 
+                                          command=self.docker_stop, width=10)
+        self.docker_stop_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.docker_stop_btn, "Stop containers")
         
-        docker_row2 = ttk.Frame(docker_frame)
-        docker_row2.pack(fill=tk.X, pady=(0, 4))
-        
-        self.docker_restart_btn = ttk.Button(docker_row2, text='RESTART', 
-                                             command=self.docker_restart)
-        self.docker_restart_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.docker_restart_btn, "Restart all containers")
-        
-        self.docker_status_btn = ttk.Button(docker_row2, text='CHECK STATUS', 
+        self.docker_status_btn = ttk.Button(docker_row1, text='Status', 
                                             command=self.docker_status,
-                                            style='Primary.TButton')
-        self.docker_status_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        create_tooltip(self.docker_status_btn, "Check status of all containers (docker ps)")
+                                            style='Primary.TButton', width=10)
+        self.docker_status_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.docker_status_btn, "Check status")
         
-        # Maintenance
-        maint_label = ttk.Label(docker_frame, text='Maintenance:', 
-                               font=('Segoe UI', 9, 'bold'), foreground='#4f46e5')
-        maint_label.pack(anchor='w', pady=(8, 5))
+        self.docker_restart_btn = ttk.Button(docker_row1, text='Restart', 
+                                             command=self.docker_restart, width=10)
+        self.docker_restart_btn.pack(side=tk.LEFT)
+        create_tooltip(self.docker_restart_btn, "Restart all")
         
+        # Maintenance row
+        docker_row2 = ttk.Frame(docker_frame)
+        docker_row2.pack(fill=tk.X, pady=(0, 2))
+        
+        ttk.Button(docker_row2, text='Build', 
+                  command=self.docker_build, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        
+        ttk.Button(docker_row2, text='Clean', 
+                  command=self.docker_clean, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        
+        ttk.Button(docker_row2, text='� Browse', 
+                  command=self.browse_compose_file, width=12).pack(side=tk.LEFT, padx=(0, 2))
+        
+        ttk.Button(docker_row2, text='Edit', 
+                  command=self.edit_compose_file, width=10).pack(side=tk.LEFT)
+        
+        # Compose file path (separate row)
         docker_row3 = ttk.Frame(docker_frame)
-        docker_row3.pack(fill=tk.X, pady=(0, 4))
+        docker_row3.pack(fill=tk.X, pady=(2, 2))
         
-        ttk.Button(docker_row3, text='BUILD IMAGES', 
-                  command=self.docker_build).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        ttk.Button(docker_row3, text='CLEAN RESOURCES', 
-                  command=self.docker_clean).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Compose File Config
-        compose_label = ttk.Label(docker_frame, text='Compose File:', 
-                                 font=('Segoe UI', 9, 'bold'), foreground='#4f46e5')
-        compose_label.pack(anchor='w', pady=(8, 5))
-        
-        docker_row4 = ttk.Frame(docker_frame)
-        docker_row4.pack(fill=tk.X, pady=(0, 4))
+        ttk.Label(docker_row3, text='File:', font=('Segoe UI', 8), width=5).pack(side=tk.LEFT, padx=(0, 2))
         
         # Load compose file path from config, fallback to default
         default_compose = self.config.get('compose_file', 'docker-compose.yml')
         self.compose_file_var = tk.StringVar(value=default_compose)
-        compose_entry = ttk.Entry(docker_row4, textvariable=self.compose_file_var, 
-                                 font=('Courier New', 9))
-        compose_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        
-        ttk.Button(docker_row4, text='Browse...', 
-                  command=self.browse_compose_file, width=10).pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(docker_row4, text='Edit', 
-                  command=self.edit_compose_file, width=8).pack(side=tk.LEFT)
+        compose_entry = ttk.Entry(docker_row3, textvariable=self.compose_file_var, 
+                                 font=('Courier New', 8))
+        compose_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Status Display
-        self.docker_status_label = ttk.Label(docker_frame, text='● Status: Unknown', 
-                                             font=('Segoe UI', 9, 'bold'), 
+        self.docker_status_label = ttk.Label(docker_frame, text='Status: Unknown', 
+                                             font=('Segoe UI', 8), 
                                              foreground='#6b7280')
-        self.docker_status_label.pack(pady=(8, 0))
+        self.docker_status_label.pack(pady=(3, 0))
         
-        # === SPARK JOB EXECUTION ===
-        action_frame = ttk.LabelFrame(left_panel, text='Spark Job Execution', padding=10)
-        action_frame.pack(fill=tk.X, pady=(0, 8))
+        # === SPARK JOB EXECUTION (Optimized) ===
+        action_frame = ttk.LabelFrame(left_panel, text='⚡ Spark Job', padding=6)
+        action_frame.pack(fill=tk.X, pady=(0, 4))
         
-        # Quick Execution
-        quick_label = ttk.Label(action_frame, text='Quick Execution:', 
-                               font=('Segoe UI', 9, 'bold'), foreground='#10b981')
-        quick_label.pack(anchor='w', pady=(0, 5))
-        
+        # Quick Actions
         row1 = ttk.Frame(action_frame)
-        row1.pack(fill=tk.X, pady=(0, 4))
+        row1.pack(fill=tk.X, pady=(0, 2))
         
-        self.gen_btn = ttk.Button(row1, text='GENERATE COMMANDS', 
+        self.gen_btn = ttk.Button(row1, text='Generate', 
                                   command=self.on_generate, 
-                                  style='Action.TButton')
-        self.gen_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.gen_btn, "Generate Docker commands for the selected file (F5)")
+                                  style='Action.TButton', width=15)
+        self.gen_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.gen_btn, "Generate commands (F5)")
         
-        self.auto_btn = ttk.Button(row1, text='RUN JOB NOW', 
+        self.auto_btn = ttk.Button(row1, text='Run Now', 
                                    command=self.on_auto_run,
-                                   style='Success.TButton')
-        self.auto_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        create_tooltip(self.auto_btn, "Automatically copy file and submit to Spark (Ctrl+R)")
+                                   style='Success.TButton', width=15)
+        self.auto_btn.pack(side=tk.LEFT)
+        create_tooltip(self.auto_btn, "Auto run job (Ctrl+R)")
         
-        # Manual Step-by-Step
-        manual_label = ttk.Label(action_frame, text='Manual Step-by-Step:', 
-                                font=('Segoe UI', 9, 'bold'), foreground='#10b981')
-        manual_label.pack(anchor='w', pady=(8, 5))
-        
+        # Manual Steps
         row2 = ttk.Frame(action_frame)
-        row2.pack(fill=tk.X, pady=(0, 4))
+        row2.pack(fill=tk.X, pady=(0, 2))
         
-        self.step1_btn = ttk.Button(row2, text='1. COPY FILE', command=self.on_step1)
-        self.step1_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.step1_btn, "Step 1: Copy Python/JAR file to container /tmp directory")
+        self.step1_btn = ttk.Button(row2, text='1. Copy', command=self.on_step1, width=10)
+        self.step1_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.step1_btn, "Copy file to container")
         
-        self.step2_btn = ttk.Button(row2, text='2. OPEN BASH', command=self.on_step2)
-        self.step2_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.step2_btn, "Step 2: Open interactive bash terminal in container")
+        self.step2_btn = ttk.Button(row2, text='2. Bash', command=self.on_step2, width=10)
+        self.step2_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.step2_btn, "Open bash terminal")
         
-        self.step3_btn = ttk.Button(row2, text='3. SUBMIT JOB', command=self.on_step3)
-        self.step3_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        create_tooltip(self.step3_btn, "Step 3: Submit job to Spark cluster using spark-submit")
+        self.step3_btn = ttk.Button(row2, text='3. Submit', command=self.on_step3, width=10)
+        self.step3_btn.pack(side=tk.LEFT)
+        create_tooltip(self.step3_btn, "Submit to Spark")
         
         # Job Control
-        control_label = ttk.Label(action_frame, text='Job Control:', 
-                                 font=('Segoe UI', 9, 'bold'), foreground='#10b981')
-        control_label.pack(anchor='w', pady=(8, 5))
-        
         row3 = ttk.Frame(action_frame)
-        row3.pack(fill=tk.X, pady=(0, 4))
+        row3.pack(fill=tk.X, pady=(0, 2))
         
-        self.stop_btn = ttk.Button(row3, text='STOP JOB', command=self.on_stop, 
-                                   state=tk.DISABLED)
-        self.stop_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        create_tooltip(self.stop_btn, "Stop currently running job gracefully")
+        self.stop_btn = ttk.Button(row3, text='Stop', command=self.on_stop, 
+                                   state=tk.DISABLED, width=10)
+        self.stop_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.stop_btn, "Stop job (Esc)")
         
-        self.kill_btn = ttk.Button(row3, text='FORCE KILL', command=self.force_kill)
-        self.kill_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        create_tooltip(self.kill_btn, "Force terminate all Spark processes (pkill -9 java)")
+        self.kill_btn = ttk.Button(row3, text='Kill', command=self.force_kill, width=10)
+        self.kill_btn.pack(side=tk.LEFT, padx=(0, 2))
+        create_tooltip(self.kill_btn, "Force kill")
         
-        # Monitoring & UI
-        monitor_label = ttk.Label(action_frame, text='Monitoring:', 
-                                 font=('Segoe UI', 9, 'bold'), foreground='#10b981')
-        monitor_label.pack(anchor='w', pady=(8, 5))
+        ttk.Button(row3, text='Copy Cmd', command=self.on_copy, width=10).pack(
+            side=tk.LEFT, padx=(0, 2))
+        ttk.Button(row3, text='Clear Log', command=self.clear_log, width=10).pack(
+            side=tk.LEFT)
         
+        # Utilities row
         row4 = ttk.Frame(action_frame)
-        row4.pack(fill=tk.X, pady=(0, 4))
+        row4.pack(fill=tk.X)
         
-        ttk.Button(row4, text='OPEN SPARK UI', command=self.open_spark_ui).pack(
-            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        ttk.Button(row4, text='OPEN HADOOP UI', command=self.open_hadoop_ui).pack(
-            side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Log Management
-        log_label = ttk.Label(action_frame, text='Log Management:', 
-                             font=('Segoe UI', 9, 'bold'), foreground='#10b981')
-        log_label.pack(anchor='w', pady=(8, 5))
-        
-        row5 = ttk.Frame(action_frame)
-        row5.pack(fill=tk.X, pady=(0, 4))
-        
-        ttk.Button(row5, text='COPY COMMANDS', command=self.on_copy).pack(
-            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        ttk.Button(row5, text='CLEAR LOG', command=self.clear_log).pack(
-            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        ttk.Button(row5, text='EXPORT LOG', command=self.export_log).pack(
-            side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(row4, text='Spark UI', command=self.open_spark_ui, width=10).pack(
+            side=tk.LEFT, padx=(0, 2))
+        ttk.Button(row4, text='Hadoop UI', command=self.open_hadoop_ui, width=10).pack(
+            side=tk.LEFT, padx=(0, 2))
+        ttk.Button(row4, text='Export Log', command=self.export_log, width=10).pack(
+            side=tk.LEFT, padx=(0, 2))
         
         # Progress Indicator
         self.progress = ttk.Progressbar(action_frame, mode='indeterminate', 
                                        style='Accent.Horizontal.TProgressbar')
-        self.progress.pack(fill=tk.X, pady=(8, 0))
+        self.progress.pack(fill=tk.X, pady=(3, 0))
         
         # === GENERATED COMMANDS ===
-        cmd_frame = ttk.LabelFrame(left_panel, text='Generated Commands', padding=10)
-        cmd_frame.pack(fill=tk.BOTH, expand=True)
+        cmd_frame = ttk.LabelFrame(left_panel, text='📋 Commands', padding=6)
+        cmd_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 0))
         
-        self.cmd_text = scrolledtext.ScrolledText(cmd_frame, height=10, wrap=tk.WORD, 
+        self.cmd_text = scrolledtext.ScrolledText(cmd_frame, height=8, wrap=tk.WORD, 
                                                   bg=self.theme['bg_cmd'], 
                                                   fg=self.theme['text'],
                                                   font=('Courier New', 9),
                                                   relief='flat',
                                                   borderwidth=0,
-                                                  padx=8,
-                                                  pady=8)
+                                                  padx=6,
+                                                  pady=6)
         self.cmd_text.pack(fill=tk.BOTH, expand=True)
         self.cmd_text.bind('<Button-3>', lambda e: self.show_cmd_context_menu(e))
         
         # ========== RIGHT PANEL - EXECUTION LOG ==========
         
         # === Log Frame ===
-        log_frame = ttk.LabelFrame(right_panel, text='Execution Log & Results', padding=8)
+        log_frame = ttk.LabelFrame(right_panel, text='📊 Execution Log', padding=6)
         log_frame.pack(fill=tk.BOTH, expand=True)
         
         self.log_text_widget = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, 
                                                   bg=self.theme['bg_log'], 
-                                                  fg='#e2e8f0',
-                                                  font=('Courier New', 10),
+                                                  fg='#2c3e50',
+                                                  font=('Courier New', 9),
                                                   relief='flat',
                                                   borderwidth=0,
                                                   insertbackground='#60a5fa',
-                                                  padx=12,
-                                                  pady=12)
+                                                  padx=8,
+                                                  pady=8)
         self.log_text_widget.pack(fill=tk.BOTH, expand=True)
         self.log_text_widget.bind('<Button-3>', lambda e: self.show_log_context_menu(e))
         

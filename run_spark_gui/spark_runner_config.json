@@ -4,13 +4,8 @@
   "hdfs_container": "namenode",
   "hdfs_host": "hdfs://namenode:8020",
   "hdfs_default_path": "/input",
-  "history": [
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/word_count_harry_potter.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/tongsoluongtu.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/mangluoituongtacnhanvat.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/demsoluong20tunhieunhat.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/TEST1.py"
-  ],
+  "history": [],
   "auto_extract_archives": true,
-  "delete_archive_after_extract": true
+  "delete_archive_after_extract": true,
+  "compose_file": "D:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\docker-compose.yml"
 }

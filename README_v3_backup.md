@@ -1,13 +1,12 @@
-# 🚀 Spark Runner GUI V4.1 - Clean Professional Edition
+# 🚀 Spark Runner GUI - Pro Edition v3.0.0
 
-![Version](https://img.shields.io/badge/version-4.1.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.8+-green.svg)
-![UI](https://img.shields.io/badge/UI-Clean%20Professional-purple.svg)
-![Status](https://img.shields.io/badge/status-production-success.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
+![Python](https://img.shields.io/badge/python-3.7+-green.svg)
+![License](https://img.shields.io/badge/license-MIT-yellow.svg)
 
-**Modern, clean, and professional GUI for managing Apache Spark jobs on Docker containers.**
+**Công cụ GUI mạnh mẽ để quản lý và chạy Apache Spark jobs trên Docker containers**
 
-Inspired by GitHub, VS Code, and Notion - designed for developers who value simplicity and efficiency.
+Ứng dụng desktop hiện đại với giao diện đồ họa trực quan, giúp đơn giản hóa việc triển khai và quản lý Spark jobs, HDFS uploads, và monitoring Docker containers.
 
 ---
 

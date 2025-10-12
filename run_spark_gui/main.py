@@ -9,21 +9,32 @@ import re
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from hdfs_upload_tab import HDFSUploadTab
-from ai_code_generator_tab import AICodeGeneratorTab
-from performance_monitor import PerformanceMonitor
-from theme import setup_theme, COLORS
-from spark_runner_tab import SparkRunnerTab
 
-APP_TITLE = "🚀 Spark Runner GUI - Pro Edition"
+# Import V4 Clean Professional Design for all tabs
+try:
+    from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
+    from hdfs_upload_tab_v4_clean import HDFSUploadTabV4Clean as HDFSUploadTab
+    from ai_code_generator_tab_v4_clean import AICodeGeneratorTabV4Clean as AICodeGeneratorTab
+    from performance_monitor_v4_clean import PerformanceMonitorV4Clean as PerformanceMonitor
+    print("✅ Using Clean Professional UI V4 (all tabs)")
+except ImportError as e:
+    print(f"⚠️ V4 Clean import failed: {e}")
+    try:
+        from spark_runner_tab import SparkRunnerTab
+        from hdfs_upload_tab_modern import HDFSUploadTabModern as HDFSUploadTab
+        from ai_code_generator_tab import AICodeGeneratorTab
+        from performance_monitor import PerformanceMonitor
+        print("⚠️ Using fallback UI (original)")
+    except ImportError:
+        print("❌ No UI modules found!")
+        sys.exit(1)
+from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
+
+APP_TITLE = "Spark Runner GUI V4.1"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "3.0.0"  # Major upgrade with enhanced features
+VERSION = "4.1.0"  # Complete UI redesign with Material Design 3
 
-INFO_TEXT = (
-    "💡 Ctrl+O: Mở file | Ctrl+R: Chạy | F5: Generate | F1: Trợ giúp | Esc: Dừng | Ctrl+S: Export Log\n"
-    "✨ Version 3.0: Enhanced performance, better UI/UX, auto-save, real-time monitoring\n"
-    "Lịch sử và cấu hình được lưu tự động. Hover chuột lên nút để xem hướng dẫn chi tiết."
-)
+INFO_TEXT = ""  # Removed to save space
 
 
 def validate_config(config):
@@ -154,26 +165,19 @@ class App:
         signal.signal(signal.SIGTERM, self.signal_handler)
         root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        setup_theme(root)
+        # Setup modern theme
+        self.theme = setup_modern_theme(root, mode='light')
         
         # Setup menu bar
         self.create_menu()
         
-        # Main container
-        main_frame = ttk.Frame(root, padding=10)
+        # Main container with modern styling (no padding top for more space)
+        main_frame = ttk.Frame(root, padding=(Spacing.LG, 0, Spacing.LG, Spacing.LG))
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Info label with better styling
-        info_frame = ttk.Frame(main_frame)
-        info_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        info_lbl = ttk.Label(info_frame, text=INFO_TEXT, foreground='#555', 
-                            font=('Segoe UI', 9), wraplength=950)
-        info_lbl.pack(fill=tk.X)
-        
-        # === Notebook with Tabs ===
+        # === Notebook with Tabs (Direct - No Header) ===
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(8, 8))
         
         # Tab 1: Spark Runner
         self.spark_tab = ttk.Frame(self.notebook)
@@ -197,10 +201,34 @@ class App:
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Initialize Spark Runner Tab
+        # Create theme dictionary for backward compatibility
+        theme_dict = {
+            # Background colors
+            'bg_light': '#FFFFFF',
+            'bg_primary': LightTheme.BG_PRIMARY,
+            'bg_secondary': LightTheme.BG_SECONDARY,
+            'bg_cmd': '#1E1E1E',  # Dark background for command output
+            'bg_log': '#F5F5F5',  # Light gray for log output
+            
+            # Text colors
+            'text': LightTheme.TEXT_PRIMARY,
+            'text_primary': LightTheme.TEXT_PRIMARY,
+            'text_secondary': LightTheme.TEXT_SECONDARY,
+            
+            # Brand colors
+            'primary': LightTheme.PRIMARY,
+            'success': LightTheme.SUCCESS,
+            'error': LightTheme.ERROR,
+            'warning': '#FF9800',  # Orange for warnings
+            
+            # Border colors
+            'border': LightTheme.BORDER,
+        }
+        
         self.spark_runner = SparkRunnerTab(
             parent_frame=self.spark_tab,
             config=self.config,
-            theme=COLORS,
+            theme=theme_dict,  # Pass theme as dictionary
             callbacks={
                 'update_status': self.update_status,
                 'append_log': self.append_log,
