@@ -8,6 +8,7 @@
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/mangluoituongtacnhanvat.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py"
   ],
   "hdfs_path": "/input",

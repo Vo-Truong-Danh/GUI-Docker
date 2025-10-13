@@ -1,12 +1,15 @@
 """
 Docker Utilities - Auto-start Docker Desktop if not running
 Supports Windows, macOS, and Linux
+Version: 5.2.0 - Enhanced Error Handling & Diagnostics
 """
 import subprocess
 import platform
 import time
 import os
+import socket
 from pathlib import Path
+from typing import Tuple, Optional, Callable, Dict, Any
 
 
 def is_docker_running():
@@ -69,7 +72,8 @@ def find_docker_desktop_path():
             path, _ = winreg.QueryValueEx(key, "")
             if os.path.exists(path):
                 return path
-        except:
+        except (ImportError, OSError, WindowsError) as e:
+            # Registry access failed or key not found
             pass
     
     elif system == 'Darwin':  # macOS
@@ -223,28 +227,6 @@ def wait_for_docker(timeout=90, log_callback=None, check_interval=2):
         log_callback("   Please check Docker Desktop manually and ensure it's running", 'error')
     
     return False
-    
-    if log_callback:
-        log_callback("⏳ Waiting for Docker to start...", 'info')
-    
-    while time.time() - start_time < timeout:
-        if is_docker_running():
-            if log_callback:
-                log_callback("✅ Docker is now running!", 'success')
-            return True
-        
-        # Log progress every 5 seconds
-        elapsed = time.time() - start_time
-        if log_callback and elapsed - last_log_time >= 5:
-            remaining = int(timeout - elapsed)
-            log_callback(f"   Still waiting... ({remaining}s remaining)", 'info')
-            last_log_time = elapsed
-        
-        time.sleep(2)
-    
-    if log_callback:
-        log_callback("❌ Timeout waiting for Docker to start", 'error')
-    return False
 
 
 def ensure_docker_running(log_callback=None, auto_start=True, wait=True):
@@ -299,7 +281,7 @@ def ensure_docker_running(log_callback=None, auto_start=True, wait=True):
 
 def get_docker_info():
     """
-    Get Docker system information
+    Get Docker system information with enhanced error handling
     
     Returns:
         dict: Docker info or None if not available
@@ -308,41 +290,372 @@ def get_docker_info():
         result = subprocess.run(
             ['docker', 'info', '--format', '{{json .}}'],
             capture_output=True,
-            timeout=5,
-            text=True
+            timeout=10,  # Increased timeout
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
         )
         
         if result.returncode == 0:
             import json
-            return json.loads(result.stdout)
+            try:
+                return json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                print(f"⚠️ Failed to parse Docker info JSON: {e}")
+                return None
         
         return None
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print("⚠️ Timeout getting Docker info")
+        return None
+    except FileNotFoundError:
+        print("⚠️ Docker command not found")
+        return None
+    except Exception as e:
+        print(f"⚠️ Unexpected error getting Docker info: {e}")
         return None
 
 
 def check_docker_compose():
     """
-    Check if docker-compose is available
+    Check if docker-compose is available with fallback to 'docker compose'
     
     Returns:
-        tuple: (available: bool, version: str or None)
+        tuple: (available: bool, version: str or None, command: str or None)
     """
+    # Try docker-compose (standalone)
     try:
         result = subprocess.run(
             ['docker-compose', '--version'],
             capture_output=True,
             timeout=5,
-            text=True
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
         )
         
         if result.returncode == 0:
             version = result.stdout.strip()
-            return True, version
+            return True, version, 'docker-compose'
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    # Try docker compose (plugin)
+    try:
+        result = subprocess.run(
+            ['docker', 'compose', 'version'],
+            capture_output=True,
+            timeout=5,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
         
-        return False, None
-    except (FileNotFoundError, Exception):
-        return False, None
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            return True, version, 'docker compose'
+    except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        pass
+    
+    return False, None, None
+
+
+# ============================================================================
+# ENHANCED FEATURES - V5.2.0
+# ============================================================================
+
+def get_docker_diagnostics() -> Dict[str, Any]:
+    """
+    Get comprehensive Docker diagnostics information
+    
+    Returns:
+        dict: Detailed Docker system information
+    """
+    diagnostics = {
+        'docker_running': False,
+        'docker_version': None,
+        'docker_compose': {
+            'available': False,
+            'version': None,
+            'command': None
+        },
+        'docker_desktop_path': None,
+        'containers': {
+            'total': 0,
+            'running': 0,
+            'stopped': 0
+        },
+        'images': 0,
+        'disk_usage': None,
+        'system': platform.system(),
+        'errors': []
+    }
+    
+    # Check if Docker is running
+    diagnostics['docker_running'] = is_docker_running()
+    
+    # Get Docker Desktop path
+    diagnostics['docker_desktop_path'] = find_docker_desktop_path()
+    
+    # Get docker-compose info
+    compose_available, compose_version, compose_cmd = check_docker_compose()
+    diagnostics['docker_compose'] = {
+        'available': compose_available,
+        'version': compose_version,
+        'command': compose_cmd
+    }
+    
+    if not diagnostics['docker_running']:
+        diagnostics['errors'].append('Docker daemon is not running')
+        return diagnostics
+    
+    # Get Docker version
+    try:
+        result = subprocess.run(
+            ['docker', '--version'],
+            capture_output=True,
+            timeout=5,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        if result.returncode == 0:
+            diagnostics['docker_version'] = result.stdout.strip()
+    except Exception as e:
+        diagnostics['errors'].append(f'Failed to get Docker version: {e}')
+    
+    # Get container stats
+    try:
+        result = subprocess.run(
+            ['docker', 'ps', '-a', '--format', '{{.State}}'],
+            capture_output=True,
+            timeout=10,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        if result.returncode == 0:
+            states = result.stdout.strip().split('\n')
+            diagnostics['containers']['total'] = len(states)
+            diagnostics['containers']['running'] = sum(1 for s in states if s == 'running')
+            diagnostics['containers']['stopped'] = diagnostics['containers']['total'] - diagnostics['containers']['running']
+    except Exception as e:
+        diagnostics['errors'].append(f'Failed to get container stats: {e}')
+    
+    # Get image count
+    try:
+        result = subprocess.run(
+            ['docker', 'images', '-q'],
+            capture_output=True,
+            timeout=10,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        if result.returncode == 0:
+            diagnostics['images'] = len([line for line in result.stdout.strip().split('\n') if line])
+    except Exception as e:
+        diagnostics['errors'].append(f'Failed to get image count: {e}')
+    
+    return diagnostics
+
+
+def check_docker_port_connectivity(host: str = 'localhost', port: int = 2375, timeout: int = 3) -> Tuple[bool, str]:
+    """
+    Check if Docker daemon port is accessible
+    
+    Args:
+        host: Docker host
+        port: Docker port (default 2375 for HTTP, 2376 for HTTPS)
+        timeout: Connection timeout in seconds
+    
+    Returns:
+        tuple: (is_accessible: bool, message: str)
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        
+        if result == 0:
+            return True, f"Port {port} is accessible"
+        else:
+            return False, f"Port {port} is not accessible (error code: {result})"
+    
+    except socket.timeout:
+        return False, f"Connection timeout after {timeout}s"
+    except socket.gaierror as e:
+        return False, f"Host resolution failed: {e}"
+    except Exception as e:
+        return False, f"Connection check failed: {e}"
+
+
+def restart_docker_desktop(log_callback: Optional[Callable] = None) -> Tuple[bool, str]:
+    """
+    Restart Docker Desktop (stop then start)
+    
+    Args:
+        log_callback: Optional callback for progress updates
+    
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    system = platform.system()
+    
+    if log_callback:
+        log_callback('🔄 Restarting Docker Desktop...', 'info')
+    
+    # Stop Docker
+    if system == 'Windows':
+        try:
+            # Kill Docker Desktop process
+            subprocess.run(
+                ['taskkill', '/F', '/IM', 'Docker Desktop.exe'],
+                capture_output=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            if log_callback:
+                log_callback('   Stopped Docker Desktop', 'info')
+            time.sleep(3)
+        except Exception as e:
+            if log_callback:
+                log_callback(f'   ⚠️ Error stopping Docker: {e}', 'warning')
+    
+    elif system == 'Darwin':  # macOS
+        try:
+            subprocess.run(
+                ['osascript', '-e', 'quit app "Docker"'],
+                capture_output=True,
+                timeout=10
+            )
+            if log_callback:
+                log_callback('   Stopped Docker Desktop', 'info')
+            time.sleep(3)
+        except Exception as e:
+            if log_callback:
+                log_callback(f'   ⚠️ Error stopping Docker: {e}', 'warning')
+    
+    elif system == 'Linux':
+        try:
+            subprocess.run(
+                ['sudo', 'systemctl', 'restart', 'docker'],
+                capture_output=True,
+                timeout=10
+            )
+            if log_callback:
+                log_callback('   Restarted Docker service', 'info')
+            time.sleep(3)
+        except Exception as e:
+            return False, f"Failed to restart Docker service: {e}"
+    
+    # Start Docker
+    success, message = start_docker_desktop()
+    
+    if success:
+        # Wait for Docker to be ready
+        if wait_for_docker(timeout=90, log_callback=log_callback):
+            return True, "Docker Desktop restarted successfully"
+        else:
+            return False, "Docker restarted but failed to become ready"
+    
+    return success, message
+
+
+def get_docker_resource_usage() -> Dict[str, Any]:
+    """
+    Get Docker resource usage statistics
+    
+    Returns:
+        dict: Resource usage information (CPU, memory, disk)
+    """
+    usage = {
+        'available': False,
+        'containers': [],
+        'total_cpu': 0.0,
+        'total_memory': 0,
+        'errors': []
+    }
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'stats', '--no-stream', '--format', 
+             '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'],
+            capture_output=True,
+            timeout=10,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        
+        if result.returncode == 0:
+            usage['available'] = True
+            
+            for line in result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                
+                parts = line.split('\t')
+                if len(parts) >= 3:
+                    name = parts[0]
+                    cpu = parts[1].replace('%', '')
+                    mem = parts[2]
+                    
+                    container_info = {
+                        'name': name,
+                        'cpu': cpu,
+                        'memory': mem
+                    }
+                    usage['containers'].append(container_info)
+                    
+                    # Try to sum CPU (if numeric)
+                    try:
+                        usage['total_cpu'] += float(cpu)
+                    except ValueError:
+                        pass
+    
+    except subprocess.TimeoutExpired:
+        usage['errors'].append('Timeout getting resource usage')
+    except Exception as e:
+        usage['errors'].append(f'Failed to get resource usage: {e}')
+    
+    return usage
+
+
+def validate_docker_installation() -> Tuple[bool, list]:
+    """
+    Comprehensive validation of Docker installation
+    
+    Returns:
+        tuple: (is_valid: bool, issues: list)
+    """
+    issues = []
+    
+    # Check 1: Docker command exists
+    try:
+        subprocess.run(
+            ['docker', '--version'],
+            capture_output=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+    except FileNotFoundError:
+        issues.append('Docker command not found in PATH')
+    except Exception as e:
+        issues.append(f'Error checking Docker command: {e}')
+    
+    # Check 2: Docker Desktop installed (Windows/macOS)
+    system = platform.system()
+    if system in ['Windows', 'Darwin']:
+        docker_path = find_docker_desktop_path()
+        if not docker_path:
+            issues.append(f'Docker Desktop not found on {system}')
+    
+    # Check 3: Docker daemon running
+    if not is_docker_running():
+        issues.append('Docker daemon is not running')
+    
+    # Check 4: Docker compose available
+    compose_available, _, _ = check_docker_compose()
+    if not compose_available:
+        issues.append('docker-compose not available')
+    
+    is_valid = len(issues) == 0
+    return is_valid, issues
 
 
 # ============================================================================
@@ -370,9 +683,10 @@ def test_docker_utils():
     
     # Test 3: Check docker-compose
     print("\n3. Checking docker-compose...")
-    compose_available, compose_version = check_docker_compose()
+    compose_available, compose_version, compose_cmd = check_docker_compose()
     if compose_available:
         print(f"   ✅ {compose_version}")
+        print(f"   Command: {compose_cmd}")
     else:
         print("   ❌ docker-compose not available")
     
@@ -386,6 +700,26 @@ def test_docker_utils():
             print(f"   Containers: {info.get('Containers', 0)} (Running: {info.get('ContainersRunning', 0)})")
         else:
             print("   Failed to get Docker info")
+    
+    # Test 5: Get diagnostics
+    print("\n5. Getting Docker diagnostics...")
+    diagnostics = get_docker_diagnostics()
+    print(f"   Docker Running: {diagnostics['docker_running']}")
+    print(f"   Version: {diagnostics['docker_version']}")
+    print(f"   Containers: {diagnostics['containers']}")
+    print(f"   Images: {diagnostics['images']}")
+    if diagnostics['errors']:
+        print(f"   Errors: {diagnostics['errors']}")
+    
+    # Test 6: Validate installation
+    print("\n6. Validating Docker installation...")
+    is_valid, issues = validate_docker_installation()
+    if is_valid:
+        print("   ✅ Docker installation is valid")
+    else:
+        print("   ❌ Issues found:")
+        for issue in issues:
+            print(f"      - {issue}")
     
     print("\n" + "=" * 70)
     print("✅ All tests completed!")

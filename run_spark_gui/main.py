@@ -37,6 +37,36 @@ except ImportError:
     HEALTH_CHECK_AVAILABLE = False
     health_checker = None
 
+# Import new enhanced error handling modules
+try:
+    from error_handler import get_error_handler, safe_execute, ErrorSeverity
+    ERROR_HANDLER_AVAILABLE = True
+    error_handler = get_error_handler(app_logger if LOGGING_AVAILABLE else None)
+    print("✅ Enhanced error handling enabled")
+except ImportError:
+    print("⚠️ Warning: Enhanced error handler not available")
+    ERROR_HANDLER_AVAILABLE = False
+    error_handler = None
+
+try:
+    from input_sanitizer import InputSanitizer, InputValidator
+    INPUT_SANITIZER_AVAILABLE = True
+    print("✅ Input sanitizer enabled")
+except ImportError:
+    print("⚠️ Warning: Input sanitizer not available")
+    INPUT_SANITIZER_AVAILABLE = False
+    InputSanitizer = None
+
+try:
+    from auto_recovery import get_auto_recovery_manager
+    AUTO_RECOVERY_AVAILABLE = True
+    auto_recovery = get_auto_recovery_manager(app_logger if LOGGING_AVAILABLE else None)
+    print("✅ Auto-recovery system enabled")
+except ImportError:
+    print("⚠️ Warning: Auto-recovery not available")
+    AUTO_RECOVERY_AVAILABLE = False
+    auto_recovery = None
+
 # Import V4 Clean Professional Design for all tabs
 print("🔄 Loading Spark Runner Tab V4...")
 from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
@@ -150,7 +180,7 @@ def validate_config(config):
 
 
 def load_config():
-    """Load configuration from JSON file with enhanced validation"""
+    """Load configuration from JSON file with enhanced validation and error handling"""
     if LOGGING_AVAILABLE and app_logger:
         app_logger.info(f"Loading configuration from {CONFIG_FILE}")
     
@@ -171,7 +201,7 @@ def load_config():
     }
     
     if os.path.exists(CONFIG_FILE):
-        try:
+        def load_and_parse():
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 
@@ -196,20 +226,32 @@ def load_config():
                     app_logger.info("Configuration loaded successfully")
                 
                 return config
-                
-        except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse config file: {e}"
-            print(f"❌ {error_msg}, using defaults")
-            if LOGGING_AVAILABLE and app_logger:
-                app_logger.error(error_msg)
-            return validate_config(default)
         
-        except Exception as e:
-            error_msg = f"Failed to load config: {e}"
-            print(f"❌ {error_msg}, using defaults")
-            if LOGGING_AVAILABLE and app_logger:
-                app_logger.error(error_msg, exc_info=True)
-            return validate_config(default)
+        # Use safe_execute if available
+        if ERROR_HANDLER_AVAILABLE and error_handler:
+            config = safe_execute(
+                operation=load_and_parse,
+                context="Loading configuration file",
+                default_return=validate_config(default),
+                logger=app_logger
+            )
+            return config
+        else:
+            # Fallback to traditional try-except
+            try:
+                return load_and_parse()
+            except json.JSONDecodeError as e:
+                error_msg = f"Failed to parse config file: {e}"
+                print(f"❌ {error_msg}, using defaults")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.error(error_msg)
+                return validate_config(default)
+            except Exception as e:
+                error_msg = f"Failed to load config: {e}"
+                print(f"❌ {error_msg}, using defaults")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.error(error_msg, exc_info=True)
+                return validate_config(default)
     
     if LOGGING_AVAILABLE and app_logger:
         app_logger.info("No config file found, using defaults")
@@ -850,8 +892,9 @@ class App:
         if self.auto_save_enabled:
             try:
                 save_config(self.config)
-            except:
-                pass
+            except Exception as e:
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.warning(f'Failed to auto-save config on exit: {e}')
         
         if messagebox.askokcancel("Thoát", "Bạn có chắc chắn muốn thoát?"):
             self.cleanup()

@@ -483,7 +483,8 @@ class DatabaseManager:
             # Try to parse as JSON
             try:
                 return json.loads(row[0])
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
+                # Return raw value if JSON parsing fails
                 return row[0]
     
     def get_all_preferences(self) -> Dict[str, Any]:
@@ -503,7 +504,8 @@ class DatabaseManager:
                 value = row['value']
                 try:
                     prefs[key] = json.loads(value)
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    # Keep raw value if JSON parsing fails
                     prefs[key] = value
             
             return prefs
@@ -556,7 +558,8 @@ class DatabaseManager:
                 item = dict(row)
                 try:
                     item['parameters'] = json.loads(item['parameters'])
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    # Use empty dict if parsing fails
                     item['parameters'] = {}
                 history.append(item)
             

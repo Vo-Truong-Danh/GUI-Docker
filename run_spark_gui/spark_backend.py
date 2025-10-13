@@ -115,16 +115,22 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
             if sys.platform == 'win32':
                 import threading
                 
+                # Thread-safe locks for list operations
+                stdout_lock = threading.Lock()
+                stderr_lock = threading.Lock()
+                
                 def read_stdout():
                     for line in process.stdout:
                         if line:
-                            stdout_lines.append(line)
+                            with stdout_lock:  # Thread-safe append
+                                stdout_lines.append(line)
                             log_callback(line.rstrip(), 'normal')
                 
                 def read_stderr():
                     for line in process.stderr:
                         if line:
-                            stderr_lines.append(line)
+                            with stderr_lock:  # Thread-safe append
+                                stderr_lines.append(line)
                             log_callback(line.rstrip(), 'warning')
                 
                 stdout_thread = threading.Thread(target=read_stdout, daemon=True)
@@ -145,7 +151,13 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                 stdout_thread.join(timeout=1)
                 stderr_thread.join(timeout=1)
                 
-                return returncode, ''.join(stdout_lines), ''.join(stderr_lines)
+                # Thread-safe join
+                with stdout_lock:
+                    stdout_output = ''.join(stdout_lines)
+                with stderr_lock:
+                    stderr_output = ''.join(stderr_lines)
+                
+                return returncode, stdout_output, stderr_output
             
             else:
                 # Unix-like systems - use select
@@ -397,8 +409,9 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
                     'end_time': datetime.now().isoformat(),
                     'error': 'Docker not found in PATH'
                 })
-            except:
-                pass
+            except Exception as db_error:
+                if log_callback:
+                    log_callback(f'⚠️ Database update failed: {db_error}', 'warning')
         return False
     
     # Step 0: Clear output directory (auto-detect from common patterns)
@@ -660,8 +673,11 @@ def get_docker_compose_status(compose_file=None, log_callback=None):
             cache_manager.set('docker_status', cache_key, result)
         
         return result
-    except:
-        # Fallback to simple text parsing
+    except (json.JSONDecodeError, ValueError, KeyError) as parse_error:
+        # Fallback to simple text parsing on JSON parse error
+        if log_callback:
+            log_callback(f'⚠️ JSON parsing failed, using text parsing: {parse_error}', 'warning')
+        
         lines = stdout.strip().split('\n')
         result = []
         for line in lines[1:]:  # Skip header
