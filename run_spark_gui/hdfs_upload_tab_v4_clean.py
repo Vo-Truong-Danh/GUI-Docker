@@ -304,6 +304,45 @@ class HDFSUploadTabV4Clean:
         )
         path_entry.pack(fill=tk.X, pady=(0, 12))
         
+        # HDFS Port
+        tk.Label(
+            config_content,
+            text="HDFS Port:",
+            bg='#FFFFFF',
+            fg='#24292F',
+            font=('Segoe UI', 9, 'bold')
+        ).pack(anchor='w', pady=(0, 4))
+        
+        # Extract port from hdfs_host if available
+        hdfs_host = self.config.get('hdfs_host', 'hdfs://namenode:8020')
+        default_port = '8020'
+        if ':' in hdfs_host.split('//')[-1]:
+            default_port = hdfs_host.split(':')[-1]
+        
+        self.hdfs_port_var = tk.StringVar(value=self.config.get('hdfs_port', default_port))
+        port_frame = tk.Frame(config_content, bg='#FFFFFF')
+        port_frame.pack(fill=tk.X, pady=(0, 12))
+        
+        port_entry = tk.Entry(
+            port_frame,
+            textvariable=self.hdfs_port_var,
+            font=('Segoe UI', 9),
+            relief=tk.SOLID,
+            borderwidth=1,
+            highlightthickness=0,
+            width=10
+        )
+        port_entry.pack(side=tk.LEFT)
+        
+        port_help = tk.Label(
+            port_frame,
+            text="(Default: 8020)",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 8)
+        )
+        port_help.pack(side=tk.LEFT, padx=8)
+        
         # Options
         self.auto_extract_var = tk.BooleanVar(value=True)
         extract_check = tk.Checkbutton(
@@ -680,7 +719,13 @@ class HDFSUploadTabV4Clean:
         """Save HDFS configuration to JSON file"""
         self.config['hdfs_container'] = self.container_var.get()
         self.config['hdfs_path'] = self.path_var.get()
+        self.config['hdfs_port'] = self.hdfs_port_var.get()
         self.config['auto_extract'] = self.auto_extract_var.get()
+        
+        # Update hdfs_host with new port
+        container = self.container_var.get()
+        port = self.hdfs_port_var.get()
+        self.config['hdfs_host'] = f'hdfs://{container}:{port}'
         
         # Save to file
         try:
@@ -690,9 +735,16 @@ class HDFSUploadTabV4Clean:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
             
             self.log(f"✓ Configuration saved to {os.path.abspath(config_file)}", 'success')
+            self.log(f"   • Container: {container}", 'info')
+            self.log(f"   • HDFS Host: hdfs://{container}:{port}", 'info')
+            self.log(f"   • Upload Path: {self.path_var.get()}", 'info')
             if self.update_status:
                 self.update_status("Configuration saved")
-            messagebox.showinfo("Success", f"Configuration saved successfully!\n\nFile: {os.path.abspath(config_file)}")
+            messagebox.showinfo("Success", f"Configuration saved successfully!\n\n"
+                              f"Container: {container}\n"
+                              f"HDFS Host: hdfs://{container}:{port}\n"
+                              f"Upload Path: {self.path_var.get()}\n\n"
+                              f"File: {os.path.abspath(config_file)}")
         except Exception as e:
             self.log(f"❌ Failed to save config: {str(e)}", 'error')
             messagebox.showerror("Error", f"Failed to save configuration:\n{str(e)}")
@@ -912,7 +964,7 @@ class HDFSUploadTabV4Clean:
             return False
     
     def start_upload(self):
-        """Start uploading files"""
+        """Start uploading files with Docker auto-start"""
         if not self.selected_files:
             self.log("❌ No files selected", 'error')
             messagebox.showwarning("No Files", "Please select files to upload")
@@ -922,6 +974,51 @@ class HDFSUploadTabV4Clean:
             self.log("⚠️ Upload already in progress", 'warning')
             messagebox.showinfo("Upload in Progress", "Upload is already running")
             return
+        
+        # Check and auto-start Docker if needed
+        try:
+            from docker_utils import is_docker_running, ensure_docker_running
+            
+            if not is_docker_running():
+                self.log("=" * 60, 'warning')
+                self.log("🐳 Docker is not running!", 'warning')
+                self.log("=" * 60, 'warning')
+                
+                # Ask user confirmation
+                response = messagebox.askyesno(
+                    "Docker Not Running",
+                    "Docker Desktop is not running.\n\n"
+                    "Would you like to start Docker Desktop automatically?\n\n"
+                    "This may take 30-60 seconds.",
+                    icon='warning'
+                )
+                
+                if not response:
+                    self.log("❌ Upload cancelled by user", 'error')
+                    return
+                
+                self.log("\n🚀 Starting Docker Desktop...", 'info')
+                docker_ready, message = ensure_docker_running(
+                    log_callback=lambda msg, tag: self.log(msg, tag),
+                    auto_start=True,
+                    wait=True
+                )
+                
+                if not docker_ready:
+                    self.log(f"❌ {message}", 'error')
+                    messagebox.showerror(
+                        "Docker Start Failed",
+                        f"Failed to start Docker Desktop:\n\n{message}\n\n"
+                        "Please start Docker Desktop manually and try again."
+                    )
+                    return
+                
+                self.log("✅ Docker is now running!", 'success')
+                self.log("=" * 60, 'success')
+        
+        except ImportError:
+            # docker_utils not available, skip check
+            pass
         
         self.is_uploading = True
         self.status_badge.config(text="● Uploading...", bg='#DDF4FF', fg='#0969DA')

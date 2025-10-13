@@ -1,0 +1,14 @@
+{
+  "container": "spark-worker",
+  "master": "spark://spark-master:7077",
+  "hdfs_container": "namenode",
+  "hdfs_host": "hdfs://namenode:9870",
+  "hdfs_default_path": "/user/spark/data",
+  "auto_extract_archives": true,
+  "delete_archive_after_extract": true,
+  "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
+  "history": [],
+  "hdfs_path": "/user/spark/data",
+  "hdfs_port": "9870",
+  "auto_extract": true
+}

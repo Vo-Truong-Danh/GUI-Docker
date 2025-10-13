@@ -28,7 +28,7 @@ from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, L
 
 APP_TITLE = "Spark Runner GUI V4.1"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "4.1.0"  # Complete UI redesign with Material Design 3
+VERSION = "2.2.0"  # Complete UI redesign with Material Design 3
 
 INFO_TEXT = ""  # Removed to save space
 

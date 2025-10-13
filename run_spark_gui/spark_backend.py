@@ -1,6 +1,7 @@
 """
 Spark Backend Logic - Separated from UI
 Contains all Docker and Spark execution logic
+Enhanced with caching, database tracking, and auto-start Docker Desktop (v4.4.3)
 """
 import subprocess
 import shutil
@@ -8,6 +9,38 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
+
+# Import Docker utilities for auto-start feature
+try:
+    from docker_utils import ensure_docker_running, is_docker_running
+    DOCKER_AUTO_START = True
+except ImportError:
+    print("⚠️ Warning: Docker auto-start feature not available")
+    DOCKER_AUTO_START = False
+    def ensure_docker_running(log_callback=None, auto_start=True, wait=True):
+        return True, "Docker check skipped"
+    def is_docker_running():
+        return True
+
+# Import caching and database modules
+try:
+    from system_utils import cache_manager, timed, RetryHandler
+    from database import db
+    ENHANCED_FEATURES = True
+    # Create convenient decorator
+    retry_with_backoff = RetryHandler.retry
+except ImportError as e:
+    print(f"⚠️ Warning: Enhanced features (cache/database) not available: {e}")
+    ENHANCED_FEATURES = False
+    # Create dummy decorators
+    def timed(name):
+        def decorator(func):
+            return func
+        return decorator
+    def retry_with_backoff(max_retries=3):
+        def decorator(func):
+            return func
+        return decorator
 
 
 def generate_commands(filepath: str, container: str, master: str) -> str:
@@ -292,9 +325,11 @@ def clear_hdfs_output(container, output_path, log_callback=None):
         return True
 
 
+@timed('auto_run_spark_job')
 def auto_run_spark_job(filepath, container, master, log_callback=None, stop_check=None):
     """
     Automatically run Spark job (copy file + submit job)
+    Enhanced with database tracking and auto-start Docker
     
     Args:
         filepath: Path to Python file
@@ -306,8 +341,48 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     Returns:
         bool: True if successful
     """
+    # Initialize database tracking
+    job_id = None
+    start_time = datetime.now()
+    
     if log_callback:
         log_callback('=' * 70, 'header')
+        log_callback('🚀 STARTING AUTOMATED SPARK JOB', 'header')
+        log_callback('=' * 70, 'header')
+    
+    # Check and auto-start Docker if needed
+    if DOCKER_AUTO_START:
+        if not is_docker_running():
+            if log_callback:
+                log_callback('\n🐳 Docker not running - Starting Docker Desktop...', 'warning')
+            
+            docker_ready, message = ensure_docker_running(
+                log_callback=log_callback,
+                auto_start=True,
+                wait=True
+            )
+            
+            if not docker_ready:
+                if log_callback:
+                    log_callback(f'❌ {message}', 'error')
+                    log_callback('Please start Docker Desktop manually and try again.', 'error')
+                return False
+    
+    if ENHANCED_FEATURES:
+        try:
+            job_id = db.add_job({
+                'job_name': Path(filepath).stem,
+                'file_path': filepath,
+                'status': 'running',
+                'start_time': start_time.isoformat(),
+                'container': container,
+                'master': master
+            })
+            if log_callback:
+                log_callback(f'📝 Job tracking ID: {job_id}', 'info')
+        except Exception as e:
+            if log_callback:
+                log_callback(f'⚠️ Database tracking unavailable: {e}', 'warning')
         log_callback('🚀 STARTING AUTOMATED SPARK JOB', 'header')
         log_callback('=' * 70, 'header')
     
@@ -349,6 +424,13 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     if stop_check and stop_check():
         if log_callback:
             log_callback('⏹️ Stopped by user request', 'warning')
+        # Update database
+        if ENHANCED_FEATURES and job_id:
+            db.update_job(job_id, {
+                'status': 'cancelled',
+                'end_time': datetime.now().isoformat(),
+                'error': 'Stopped by user'
+            })
         return False
     
     # Step 1: Copy file
@@ -356,12 +438,26 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         log_callback('\n→ STEP 1: Copy file to container', 'info')
     
     if not copy_file_to_container(filepath, container, log_callback):
+        # Update database on failure
+        if ENHANCED_FEATURES and job_id:
+            db.update_job(job_id, {
+                'status': 'failed',
+                'end_time': datetime.now().isoformat(),
+                'error': 'Failed to copy file to container'
+            })
         return False
     
     # Check if should stop
     if stop_check and stop_check():
         if log_callback:
             log_callback('⏹️ Stopped by user request', 'warning')
+        # Update database
+        if ENHANCED_FEATURES and job_id:
+            db.update_job(job_id, {
+                'status': 'cancelled',
+                'end_time': datetime.now().isoformat(),
+                'error': 'Stopped by user after file copy'
+            })
         return False
     
     # Step 2: Submit Spark job
@@ -371,27 +467,76 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     filename = Path(filepath).name
     success = submit_spark_job(container, master, filename, log_callback, timeout=300)
     
+    # Calculate duration
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    
     if success:
         if log_callback:
             log_callback('=' * 70, 'header')
             log_callback('🎉 ALL STEPS COMPLETED SUCCESSFULLY!', 'success')
+            log_callback(f'⏱️  Total duration: {duration:.2f}s', 'success')
             log_callback('=' * 70, 'header')
+        
+        # Update database on success
+        if ENHANCED_FEATURES and job_id:
+            db.update_job(job_id, {
+                'status': 'success',
+                'end_time': end_time.isoformat(),
+                'duration': duration,
+                'exit_code': 0
+            })
+    else:
+        # Update database on failure
+        if ENHANCED_FEATURES and job_id:
+            db.update_job(job_id, {
+                'status': 'failed',
+                'end_time': end_time.isoformat(),
+                'duration': duration,
+                'exit_code': 1,
+                'error': 'Spark job execution failed'
+            })
     
     return success
 
 
-def docker_compose_command(action, compose_file=None, log_callback=None):
+def docker_compose_command(action, compose_file=None, log_callback=None, auto_start_docker=True):
     """
-    Run docker-compose command
+    Run docker-compose command with auto-start Docker Desktop
     
     Args:
         action: 'up', 'down', 'start', 'stop', 'restart', 'ps', 'build'
         compose_file: Path to docker-compose.yml
         log_callback: Logging function
+        auto_start_docker: If True, auto-start Docker Desktop if not running
         
     Returns:
         tuple: (returncode, stdout, stderr)
     """
+    # Check and auto-start Docker if needed
+    if auto_start_docker and DOCKER_AUTO_START:
+        if not is_docker_running():
+            if log_callback:
+                log_callback('=' * 70, 'header')
+                log_callback('🐳 DOCKER NOT RUNNING - AUTO-START INITIATED', 'warning')
+                log_callback('=' * 70, 'header')
+            
+            docker_ready, message = ensure_docker_running(
+                log_callback=log_callback,
+                auto_start=True,
+                wait=True
+            )
+            
+            if not docker_ready:
+                if log_callback:
+                    log_callback('=' * 70, 'header')
+                    log_callback(f'❌ {message}', 'error')
+                    log_callback('=' * 70, 'header')
+                return -1, '', message
+            
+            if log_callback:
+                log_callback('=' * 70, 'header')
+    
     cmd = ['docker-compose']
     
     if compose_file:
@@ -408,32 +553,59 @@ def docker_compose_command(action, compose_file=None, log_callback=None):
     return run_docker_command(cmd, log_callback, timeout=120)
 
 
+@timed('get_container_status')
+@retry_with_backoff(max_attempts=2, initial_delay=0.5)
 def get_container_status(container, log_callback=None):
     """
-    Get Docker container status
+    Get Docker container status with caching
     
     Returns:
         str: 'running', 'exited', 'paused', 'not_found', 'error'
     """
+    # Try cache first (10s TTL)
+    if ENHANCED_FEATURES:
+        cache_key = f'container_status_{container}'
+        cached_status = cache_manager.get('docker_status', cache_key)
+        if cached_status:
+            if log_callback:
+                log_callback(f'  ⚡ Using cached status for {container}', 'info')
+            return cached_status
+    
     cmd = ['docker', 'inspect', '-f', '{{.State.Status}}', container]
     returncode, stdout, stderr = run_docker_command(cmd, log_callback=None, timeout=10)
     
     if returncode == 0:
         status = stdout.strip().lower()
+        # Cache the result
+        if ENHANCED_FEATURES:
+            cache_manager.set('docker_status', cache_key, status)
         return status
     else:
         if 'no such object' in stderr.lower() or 'not found' in stderr.lower():
-            return 'not_found'
-        return 'error'
+            status = 'not_found'
+        else:
+            status = 'error'
+        # Cache negative results too (shorter TTL handled by cache_manager)
+        if ENHANCED_FEATURES:
+            cache_manager.set('docker_status', cache_key, status)
+        return status
 
 
+@timed('get_docker_compose_status')
 def get_docker_compose_status(compose_file=None, log_callback=None):
     """
-    Get status of all containers in docker-compose
+    Get status of all containers in docker-compose with caching
     
     Returns:
         list: List of (container_name, status) tuples
     """
+    # Try cache first (10s TTL)
+    if ENHANCED_FEATURES:
+        cache_key = f'compose_status_{compose_file or "default"}'
+        cached_status = cache_manager.get('docker_status', cache_key)
+        if cached_status:
+            return cached_status
+    
     cmd = ['docker-compose']
     if compose_file:
         cmd.extend(['-f', compose_file])
@@ -447,7 +619,13 @@ def get_docker_compose_status(compose_file=None, log_callback=None):
     try:
         import json
         containers = json.loads(stdout) if stdout.strip().startswith('[') else [json.loads(line) for line in stdout.strip().split('\n') if line]
-        return [(c.get('Name', 'unknown'), c.get('State', 'unknown')) for c in containers]
+        result = [(c.get('Name', 'unknown'), c.get('State', 'unknown')) for c in containers]
+        
+        # Cache the result
+        if ENHANCED_FEATURES:
+            cache_manager.set('docker_status', cache_key, result)
+        
+        return result
     except:
         # Fallback to simple text parsing
         lines = stdout.strip().split('\n')
@@ -456,6 +634,11 @@ def get_docker_compose_status(compose_file=None, log_callback=None):
             parts = line.split()
             if len(parts) >= 2:
                 result.append((parts[0], parts[1]))
+        
+        # Cache the result
+        if ENHANCED_FEATURES:
+            cache_manager.set('docker_status', cache_key, result)
+            
         return result
 
 
