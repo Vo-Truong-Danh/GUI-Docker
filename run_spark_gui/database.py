@@ -233,29 +233,65 @@ class DatabaseManager:
     # ==== Upload History Methods ====
     
     def add_upload(self, upload_data: Dict[str, Any]) -> int:
-        """Add upload to history"""
+        """Add upload to history - returns upload ID"""
         with self.lock:
             conn = self._get_connection()
             cursor = conn.cursor()
             
+            # New schema - track more details
             cursor.execute('''
                 INSERT INTO upload_history 
-                (file_name, file_size, container, hdfs_path, status, duration, error)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (file_name, file_size, container, hdfs_path, status, duration, error, uploaded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                upload_data.get('file_name'),
-                upload_data.get('file_size'),
-                upload_data.get('container'),
-                upload_data.get('hdfs_path'),
-                upload_data.get('status'),
+                upload_data.get('filename', upload_data.get('file_name')),
+                upload_data.get('file_size', 0),
+                upload_data.get('container', ''),
+                upload_data.get('hdfs_path', ''),
+                upload_data.get('status', 'pending'),
                 upload_data.get('duration'),
-                upload_data.get('error')
+                upload_data.get('error'),
+                upload_data.get('start_time', datetime.now().isoformat())
             ))
             
             upload_id = cursor.lastrowid
             conn.commit()
             conn.close()
             return upload_id
+    
+    def update_upload(self, upload_id: int, update_data: Dict[str, Any]):
+        """Update upload record with completion data"""
+        with self.lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Build dynamic UPDATE query
+            fields = []
+            values = []
+            
+            if 'status' in update_data:
+                fields.append('status = ?')
+                values.append(update_data['status'])
+            
+            if 'duration' in update_data:
+                fields.append('duration = ?')
+                values.append(update_data['duration'])
+            
+            if 'error' in update_data:
+                fields.append('error = ?')
+                values.append(update_data['error'])
+            
+            if 'target_path' in update_data:
+                fields.append('hdfs_path = ?')
+                values.append(update_data['target_path'])
+            
+            if fields:
+                values.append(upload_id)
+                query = f"UPDATE upload_history SET {', '.join(fields)} WHERE id = ?"
+                cursor.execute(query, values)
+                conn.commit()
+            
+            conn.close()
     
     def get_upload_history(self, limit: int = 50) -> List[Dict]:
         """Get upload history"""
