@@ -20,11 +20,20 @@ def is_docker_running():
         result = subprocess.run(
             ['docker', 'info'],
             capture_output=True,
-            timeout=5,
-            text=True
+            timeout=10,  # Increased timeout from 5 to 10
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
         )
         return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+    except subprocess.TimeoutExpired:
+        # Timeout usually means Docker is starting or hung
+        return False
+    except FileNotFoundError:
+        # Docker command not found
+        return False
+    except Exception as e:
+        # Log unexpected errors
+        print(f"⚠️ Unexpected error checking Docker status: {e}")
         return False
 
 
@@ -90,7 +99,7 @@ def find_docker_desktop_path():
 
 def start_docker_desktop():
     """
-    Start Docker Desktop application
+    Start Docker Desktop application with enhanced error handling
     
     Returns:
         tuple: (success: bool, message: str)
@@ -99,15 +108,24 @@ def start_docker_desktop():
     docker_path = find_docker_desktop_path()
     
     if not docker_path:
-        return False, f"Docker Desktop not found on {system}. Please install Docker Desktop."
+        error_msg = (
+            f"Docker Desktop not found on {system}.\n"
+            f"Please install Docker Desktop from: https://www.docker.com/products/docker-desktop"
+        )
+        return False, error_msg
     
     try:
         if system == 'Windows':
-            # Start Docker Desktop in background
+            # Start Docker Desktop in background with proper flags
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+            
             subprocess.Popen(
                 [docker_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             return True, "Docker Desktop is starting... Please wait 30-60 seconds."
@@ -123,30 +141,88 @@ def start_docker_desktop():
         elif system == 'Linux':
             # On Linux, try to start Docker service
             try:
-                subprocess.run(['sudo', 'systemctl', 'start', 'docker'], check=True)
-                return True, "Docker service is starting..."
-            except subprocess.CalledProcessError:
-                return False, "Failed to start Docker service. Please start it manually with: sudo systemctl start docker"
+                # Try systemctl first
+                result = subprocess.run(
+                    ['sudo', 'systemctl', 'start', 'docker'],
+                    capture_output=True,
+                    timeout=10,
+                    text=True
+                )
+                if result.returncode == 0:
+                    return True, "Docker service is starting..."
+                else:
+                    # Try service command as fallback
+                    result = subprocess.run(
+                        ['sudo', 'service', 'docker', 'start'],
+                        capture_output=True,
+                        timeout=10,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        return True, "Docker service is starting..."
+                    else:
+                        return False, f"Failed to start Docker service: {result.stderr}"
+            except subprocess.TimeoutExpired:
+                return False, "Timeout starting Docker service"
+            except FileNotFoundError:
+                return False, "Cannot start Docker service. Please start it manually with: sudo systemctl start docker"
         
         return False, f"Unsupported platform: {system}"
     
+    except PermissionError:
+        return False, f"Permission denied. Please run as administrator or check file permissions: {docker_path}"
+    
+    except FileNotFoundError as e:
+        return False, f"File not found: {e}"
+    
     except Exception as e:
-        return False, f"Failed to start Docker Desktop: {str(e)}"
+        return False, f"Failed to start Docker Desktop: {type(e).__name__}: {str(e)}"
 
 
-def wait_for_docker(timeout=60, log_callback=None):
+def wait_for_docker(timeout=90, log_callback=None, check_interval=2):
     """
-    Wait for Docker daemon to become available
+    Wait for Docker daemon to become available with better feedback
     
     Args:
         timeout: Maximum seconds to wait
         log_callback: Optional callback for progress updates (message, tag)
+        check_interval: Seconds between checks
     
     Returns:
         bool: True if Docker is running, False if timeout
     """
     start_time = time.time()
     last_log_time = 0
+    attempts = 0
+    max_attempts = int(timeout / check_interval)
+    
+    if log_callback:
+        log_callback("⏳ Waiting for Docker to start...", 'info')
+    
+    while time.time() - start_time < timeout:
+        attempts += 1
+        
+        if is_docker_running():
+            elapsed = time.time() - start_time
+            if log_callback:
+                log_callback(f"✅ Docker is now running! (took {elapsed:.1f}s)", 'success')
+            return True
+        
+        # Log progress every 5 seconds
+        elapsed = time.time() - start_time
+        if log_callback and elapsed - last_log_time >= 5:
+            remaining = int(timeout - elapsed)
+            progress = int((attempts / max_attempts) * 100)
+            log_callback(f"   Still waiting... ({remaining}s remaining, {progress}% elapsed)", 'info')
+            last_log_time = elapsed
+        
+        time.sleep(check_interval)
+    
+    if log_callback:
+        log_callback("❌ Timeout waiting for Docker to start", 'error')
+        log_callback("   Please check Docker Desktop manually and ensure it's running", 'error')
+    
+    return False
     
     if log_callback:
         log_callback("⏳ Waiting for Docker to start...", 'info')

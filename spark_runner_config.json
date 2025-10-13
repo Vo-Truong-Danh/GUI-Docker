@@ -7,8 +7,10 @@
   "auto_extract_archives": true,
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
-  "history": [],
-  "hdfs_path": "/user/spark/data",
+  "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py"
+  ],
+  "hdfs_path": "/input",
   "hdfs_port": "9870",
   "auto_extract": true
 }

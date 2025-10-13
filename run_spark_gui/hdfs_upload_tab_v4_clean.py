@@ -22,10 +22,26 @@ from typing import List, Dict, Any, Optional
 try:
     from system_utils import cache_manager, timed, RetryHandler
     from database import db
+    from hdfs_utils import (
+        check_hdfs_safe_mode,
+        wait_for_hdfs_ready,
+        upload_to_hdfs_with_retry,
+        verify_hdfs_file,
+        install_package_in_container,
+        HDFSSafeModeError,
+        HDFSError
+    )
+    from java_unzip_util import (
+        check_java_available,
+        setup_java_unzip,
+        extract_and_upload_to_hdfs
+    )
     ENHANCED_FEATURES = True
-    print("✅ HDFS Upload: Enhanced features enabled (caching + database)")
+    JAVA_UNZIP_AVAILABLE = True
+    print("✅ HDFS Upload: Enhanced features enabled (caching + database + HDFS utils + Java unzip)")
 except ImportError as e:
     ENHANCED_FEATURES = False
+    JAVA_UNZIP_AVAILABLE = False
     print(f"⚠️ HDFS Upload: Enhanced features disabled ({e})")
 
 
@@ -939,20 +955,56 @@ class HDFSUploadTabV4Clean:
         needs_unzip = False
         
         if filename_lower.endswith('.zip'):
-            # Check if unzip is available
+            # Use Java-based unzip (works on all Hadoop containers!)
+            if JAVA_UNZIP_AVAILABLE:
+                self.log(f"      Step 2.5/4: Extracting ZIP with Java...", 'info')
+                
+                # Extract directly to specified HDFS path (not in subdirectory)
+                hdfs_target = hdfs_path.rstrip('/')
+                
+                success, msg, uploaded = extract_and_upload_to_hdfs(
+                    container=container,
+                    zip_file_path=f'/tmp/{filename}',
+                    hdfs_target_dir=hdfs_target,
+                    log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
+                )
+                
+                if success:
+                    self.log(f"      ✅ Extracted and uploaded {uploaded} file(s) to HDFS", 'success')
+                    self.log(f"      📁 Location: {hdfs_target}/", 'success')
+                    return True
+                else:
+                    self.log(f"      ⚠️ Extraction failed: {msg}", 'warning')
+                    self.log(f"      ℹ️ ZIP file uploaded without extraction", 'info')
+                    return False
+            
+            # Fallback: Try traditional unzip command
             check_cmd = ['docker', 'exec', container, 'which', 'unzip']
             check_result = subprocess.run(check_cmd, capture_output=True, timeout=5)
             
             if check_result.returncode != 0:
                 self.log(f"      ⚠️ 'unzip' not found in container", 'warning')
                 self.log(f"      💡 Installing unzip...", 'info')
-                install_cmd = ['docker', 'exec', container, 'sh', '-c',
-                             'apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1']
-                install_result = subprocess.run(install_cmd, capture_output=True, timeout=60)
-                if install_result.returncode != 0:
+                
+                # Use enhanced installation function if available
+                if ENHANCED_FEATURES:
+                    install_success = install_package_in_container(
+                        container, 'unzip',
+                        log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
+                    )
+                else:
+                    # Legacy install method
+                    install_cmd = ['docker', 'exec', container, 'sh', '-c',
+                                 'apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1']
+                    install_result = subprocess.run(install_cmd, capture_output=True, timeout=60)
+                    install_success = (install_result.returncode == 0)
+                
+                if not install_success:
                     self.log(f"      ❌ Failed to install unzip", 'error')
                     return False
-                self.log(f"      ✓ Unzip installed successfully", 'success')
+                
+                if not ENHANCED_FEATURES:  # Legacy mode
+                    self.log(f"      ✓ Unzip installed successfully", 'success')
             
             extract_cmd = ['docker', 'exec', container, 'unzip', '-o',
                           f'/tmp/{filename}', '-d', f'/tmp/extracted_{index}']
@@ -1203,20 +1255,34 @@ class HDFSUploadTabV4Clean:
                         result = subprocess.run(copy_cmd, check=True, capture_output=True, timeout=60, text=True)
                         self.log(f"      ✓ Copied to container /tmp/", 'success')
                         
-                        # Step 2: Put to HDFS with proper path (directory + filename)
+                        # Step 2: Put to HDFS with safe mode handling and retry
                         target_path = f"{hdfs_path.rstrip('/')}/{filename}"
-                        hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
-                                   f'/tmp/{filename}', target_path]
-                        self.log(f"      Step 2/4: Upload to HDFS", 'info')
-                        self.log(f"      💻 $ hdfs dfs -put -f /tmp/{filename} {target_path}", 'normal')
+                        self.log(f"      Step 2/4: Upload to HDFS with safe mode check", 'info')
                         
-                        result = subprocess.run(hdfs_cmd, capture_output=True, text=True, timeout=60)
+                        # Use enhanced upload function if available
+                        if ENHANCED_FEATURES:
+                            success_upload, upload_msg = upload_to_hdfs_with_retry(
+                                container=container,
+                                local_file=f'/tmp/{filename}',
+                                hdfs_path=target_path,
+                                max_retries=3,
+                                log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
+                            )
+                        else:
+                            # Fallback to simple upload (legacy)
+                            hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
+                                       f'/tmp/{filename}', target_path]
+                            self.log(f"      💻 $ hdfs dfs -put -f /tmp/{filename} {target_path}", 'normal')
+                            
+                            result = subprocess.run(hdfs_cmd, capture_output=True, text=True, timeout=60)
+                            success_upload = (result.returncode == 0)
+                            upload_msg = result.stderr.strip() if result.stderr else "Upload failed"
                         
                         # Calculate duration
                         end_time = datetime.now()
                         duration = (end_time - start_time).total_seconds()
                         
-                        if result.returncode == 0:
+                        if success_upload:
                             self.log(f"      ✓ Uploaded to HDFS", 'success')
                             self.log(f"      📍 Location: {target_path}", 'success')
                             self.log(f"      ⏱️  Duration: {duration:.2f}s", 'info')
@@ -1242,8 +1308,18 @@ class HDFSUploadTabV4Clean:
                                 if not extracted:
                                     self.log(f"      ℹ️  File uploaded without extraction", 'info')
                         else:
-                            error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-                            self.log(f"      ❌ HDFS upload failed: {error_msg}", 'error')
+                            # Upload failed - log detailed error
+                            self.log(f"      ❌ HDFS upload failed: {upload_msg}", 'error')
+                            
+                            # Provide helpful suggestions based on error type
+                            if "safe mode" in upload_msg.lower():
+                                self.log(f"      💡 HDFS is in safe mode. Please wait or run:", 'info')
+                                self.log(f"         docker exec {container} hdfs dfsadmin -safemode leave", 'info')
+                            elif "permission" in upload_msg.lower():
+                                self.log(f"      💡 Permission denied. Check HDFS permissions.", 'info')
+                            elif "no space" in upload_msg.lower():
+                                self.log(f"      💡 Insufficient space in HDFS.", 'info')
+                            
                             failed += 1
                             
                             # Update database with failure
@@ -1253,18 +1329,33 @@ class HDFSUploadTabV4Clean:
                                         'status': 'failed',
                                         'end_time': end_time.isoformat(),
                                         'duration': duration,
-                                        'error': error_msg
+                                        'error': upload_msg
                                     })
                                 except Exception as e:
                                     self.log(f"      ⚠️ Database update failed: {e}", 'warning')
                         
-                        # Step 3: Verify file exists in HDFS
-                        verify_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', target_path]
-                        verify_result = subprocess.run(verify_cmd, capture_output=True, timeout=10)
-                        if verify_result.returncode == 0:
-                            self.log(f"      Step 3/4: File verified in HDFS ✓", 'success')
+                        # Step 3: Verify file exists in HDFS (ONLY if upload was successful)
+                        if success_upload:
+                            if ENHANCED_FEATURES:
+                                file_exists, verify_msg = verify_hdfs_file(
+                                    container, target_path,
+                                    log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
+                                )
+                                if not file_exists:
+                                    self.log(f"      ⚠️ Warning: {verify_msg}", 'warning')
+                                    # Downgrade to failed if verification fails
+                                    success -= 1
+                                    failed += 1
+                            else:
+                                # Legacy verification
+                                verify_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', target_path]
+                                verify_result = subprocess.run(verify_cmd, capture_output=True, timeout=10)
+                                if verify_result.returncode == 0:
+                                    self.log(f"      Step 3/4: File verified in HDFS ✓", 'success')
+                                else:
+                                    self.log(f"      ⚠️ Warning: Could not verify file in HDFS", 'warning')
                         else:
-                            self.log(f"      ⚠️ Warning: Could not verify file in HDFS", 'warning')
+                            self.log(f"      Step 3/4: File verification skipped (upload failed)", 'info')
                         
                         # Step 4: Cleanup temp file on container
                         self.log(f"      Step 4/4: Cleanup temp file", 'info')

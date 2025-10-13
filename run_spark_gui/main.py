@@ -10,6 +10,33 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
+# Import enhanced modules
+try:
+    from validation import ConfigValidator, ValidationError
+    VALIDATION_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: Validation module not available")
+    VALIDATION_AVAILABLE = False
+    ConfigValidator = None
+
+try:
+    from logging_config import get_logger
+    LOGGING_AVAILABLE = True
+    # Create application logger
+    app_logger = get_logger('main_app', log_to_file=True, log_to_console=False)
+except ImportError:
+    print("⚠️ Warning: Logging module not available")
+    LOGGING_AVAILABLE = False
+    app_logger = None
+
+try:
+    from health_check import health_checker
+    HEALTH_CHECK_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: Health check module not available")
+    HEALTH_CHECK_AVAILABLE = False
+    health_checker = None
+
 # Import V4 Clean Professional Design for all tabs
 print("🔄 Loading Spark Runner Tab V4...")
 from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
@@ -26,9 +53,9 @@ from settings_tab_v4 import SettingsTabV4
 print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
-APP_TITLE = "Spark Runner GUI V4.1"
+APP_TITLE = "Spark Runner GUI V5.0"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "2.2.0"  # Complete UI redesign with Material Design 3
+VERSION = "5.0.0"  # Enhanced with validation, logging, and health checks
 
 INFO_TEXT = ""  # Removed to save space
 
@@ -38,6 +65,45 @@ def validate_config(config):
     Validate configuration values and fix invalid ones
     Returns validated config with corrections logged
     """
+    if LOGGING_AVAILABLE and app_logger:
+        app_logger.info("Validating configuration")
+    
+    # Use new validation module if available
+    if VALIDATION_AVAILABLE and ConfigValidator:
+        is_valid, errors = ConfigValidator.validate_config(config)
+        
+        if not is_valid:
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.warning(f"Configuration has {len(errors)} validation errors")
+                for error in errors:
+                    app_logger.warning(f"  - {error}")
+            
+            print("⚠️ Configuration validation errors:")
+            for error in errors:
+                print(f"  - {error}")
+            
+            # Try to fix config
+            fixed_config = ConfigValidator.fix_config(config)
+            
+            # Validate again
+            is_valid_after_fix, errors_after_fix = ConfigValidator.validate_config(fixed_config)
+            
+            if is_valid_after_fix:
+                print("✅ Configuration automatically fixed")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.info("Configuration automatically fixed")
+                return fixed_config
+            else:
+                print("⚠️ Could not automatically fix all errors")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.warning("Could not automatically fix all configuration errors")
+                return fixed_config
+        else:
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.info("Configuration is valid")
+            return config
+    
+    # Fallback to old validation
     validated = config.copy()
     errors = []
     
@@ -76,12 +142,18 @@ def validate_config(config):
         print("⚠️ Configuration validation errors:")
         for error in errors:
             print(f"  - {error}")
+        if LOGGING_AVAILABLE and app_logger:
+            for error in errors:
+                app_logger.warning(error)
     
     return validated
 
 
 def load_config():
-    """Load configuration from JSON file"""
+    """Load configuration from JSON file with enhanced validation"""
+    if LOGGING_AVAILABLE and app_logger:
+        app_logger.info(f"Loading configuration from {CONFIG_FILE}")
+    
     # Get absolute path to docker-compose.yml in the same directory as this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     default_compose_file = os.path.join(script_dir, 'docker-compose.yml')
@@ -97,10 +169,12 @@ def load_config():
         'compose_file': default_compose_file,
         'history': []
     }
+    
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 config = json.load(f)
+                
                 # Add new keys if not exist
                 if 'hdfs_container' not in config:
                     config['hdfs_container'] = default['hdfs_container']
@@ -117,20 +191,62 @@ def load_config():
                 
                 # Validate config before returning
                 config = validate_config(config)
+                
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.info("Configuration loaded successfully")
+                
                 return config
-        except Exception as e:
-            print(f"Failed to load config: {e}, using defaults")
+                
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse config file: {e}"
+            print(f"❌ {error_msg}, using defaults")
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.error(error_msg)
             return validate_config(default)
+        
+        except Exception as e:
+            error_msg = f"Failed to load config: {e}"
+            print(f"❌ {error_msg}, using defaults")
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.error(error_msg, exc_info=True)
+            return validate_config(default)
+    
+    if LOGGING_AVAILABLE and app_logger:
+        app_logger.info("No config file found, using defaults")
+    
     return validate_config(default)
 
 
 def save_config(config):
-    """Save configuration to JSON file"""
+    """Save configuration to JSON file with error handling"""
     try:
+        # Validate before saving
+        if VALIDATION_AVAILABLE and ConfigValidator:
+            is_valid, errors = ConfigValidator.validate_config(config)
+            if not is_valid:
+                print("⚠️ Warning: Saving invalid configuration")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.warning("Saving invalid configuration")
+                    for error in errors:
+                        app_logger.warning(f"  - {error}")
+        
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
+        
+        if LOGGING_AVAILABLE and app_logger:
+            app_logger.info(f"Configuration saved to {CONFIG_FILE}")
+    
+    except PermissionError as e:
+        error_msg = f"Permission denied when saving config: {e}"
+        print(f"❌ {error_msg}")
+        if LOGGING_AVAILABLE and app_logger:
+            app_logger.error(error_msg)
+    
     except Exception as e:
-        print(f"Failed to save config: {e}")
+        error_msg = f"Failed to save config: {e}"
+        print(f"❌ {error_msg}")
+        if LOGGING_AVAILABLE and app_logger:
+            app_logger.error(error_msg, exc_info=True)
 
 
 def add_to_history(config, filepath):

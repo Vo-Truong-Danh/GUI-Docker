@@ -368,6 +368,7 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
                     log_callback('Please start Docker Desktop manually and try again.', 'error')
                 return False
     
+    # Initialize database tracking
     if ENHANCED_FEATURES:
         try:
             job_id = db.add_job({
@@ -383,13 +384,21 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         except Exception as e:
             if log_callback:
                 log_callback(f'⚠️ Database tracking unavailable: {e}', 'warning')
-        log_callback('🚀 STARTING AUTOMATED SPARK JOB', 'header')
-        log_callback('=' * 70, 'header')
     
     # Check Docker availability
     if not shutil.which('docker'):
         if log_callback:
             log_callback('❌ Docker not found in PATH', 'error')
+        # Update database on failure
+        if ENHANCED_FEATURES and job_id:
+            try:
+                db.update_job(job_id, {
+                    'status': 'failed',
+                    'end_time': datetime.now().isoformat(),
+                    'error': 'Docker not found in PATH'
+                })
+            except:
+                pass
         return False
     
     # Step 0: Clear output directory (auto-detect from common patterns)
@@ -399,7 +408,7 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     # Try to detect output path from file
     output_paths = []
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
             # Look for common output patterns
             import re
@@ -407,15 +416,20 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
             matches = re.findall(r'saveAsTextFile\(["\']([^"\']+)["\']\)', content)
             if matches:
                 output_paths = matches
-    except:
-        pass
+    except Exception as e:
+        if log_callback:
+            log_callback(f'  ⚠️ Could not scan file for output paths: {e}', 'warning')
     
     # Clear detected output paths
     if output_paths:
         for output_path in output_paths:
             if log_callback:
                 log_callback(f'  📁 Detected output: {output_path}', 'info')
-            clear_hdfs_output('namenode', output_path, log_callback)
+            try:
+                clear_hdfs_output('namenode', output_path, log_callback)
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'  ⚠️ Could not clear output path: {e}', 'warning')
     else:
         if log_callback:
             log_callback('  ℹ️  No output paths detected in code', 'info')
@@ -426,11 +440,15 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
             log_callback('⏹️ Stopped by user request', 'warning')
         # Update database
         if ENHANCED_FEATURES and job_id:
-            db.update_job(job_id, {
-                'status': 'cancelled',
-                'end_time': datetime.now().isoformat(),
-                'error': 'Stopped by user'
-            })
+            try:
+                db.update_job(job_id, {
+                    'status': 'cancelled',
+                    'end_time': datetime.now().isoformat(),
+                    'error': 'Stopped by user'
+                })
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'⚠️ Could not update job status: {e}', 'warning')
         return False
     
     # Step 1: Copy file
@@ -440,11 +458,15 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     if not copy_file_to_container(filepath, container, log_callback):
         # Update database on failure
         if ENHANCED_FEATURES and job_id:
-            db.update_job(job_id, {
-                'status': 'failed',
-                'end_time': datetime.now().isoformat(),
-                'error': 'Failed to copy file to container'
-            })
+            try:
+                db.update_job(job_id, {
+                    'status': 'failed',
+                    'end_time': datetime.now().isoformat(),
+                    'error': 'Failed to copy file to container'
+                })
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'⚠️ Could not update job status: {e}', 'warning')
         return False
     
     # Check if should stop
@@ -453,11 +475,15 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
             log_callback('⏹️ Stopped by user request', 'warning')
         # Update database
         if ENHANCED_FEATURES and job_id:
-            db.update_job(job_id, {
-                'status': 'cancelled',
-                'end_time': datetime.now().isoformat(),
-                'error': 'Stopped by user after file copy'
-            })
+            try:
+                db.update_job(job_id, {
+                    'status': 'cancelled',
+                    'end_time': datetime.now().isoformat(),
+                    'error': 'Stopped by user after file copy'
+                })
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'⚠️ Could not update job status: {e}', 'warning')
         return False
     
     # Step 2: Submit Spark job
@@ -480,22 +506,30 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         
         # Update database on success
         if ENHANCED_FEATURES and job_id:
-            db.update_job(job_id, {
-                'status': 'success',
-                'end_time': end_time.isoformat(),
-                'duration': duration,
-                'exit_code': 0
-            })
+            try:
+                db.update_job(job_id, {
+                    'status': 'success',
+                    'end_time': end_time.isoformat(),
+                    'duration': duration,
+                    'exit_code': 0
+                })
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'⚠️ Could not update job status: {e}', 'warning')
     else:
         # Update database on failure
         if ENHANCED_FEATURES and job_id:
-            db.update_job(job_id, {
-                'status': 'failed',
-                'end_time': end_time.isoformat(),
-                'duration': duration,
-                'exit_code': 1,
-                'error': 'Spark job execution failed'
-            })
+            try:
+                db.update_job(job_id, {
+                    'status': 'failed',
+                    'end_time': end_time.isoformat(),
+                    'duration': duration,
+                    'exit_code': 1,
+                    'error': 'Spark job execution failed'
+                })
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'⚠️ Could not update job status: {e}', 'warning')
     
     return success
 

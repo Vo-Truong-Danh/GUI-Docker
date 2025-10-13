@@ -1,11 +1,12 @@
 """
 Database Layer - Job History & Metrics Storage
-Version: 4.4.0
+Version: 5.0.0 - Enhanced with retry logic and better error handling
 """
 
 import sqlite3
 import json
 import threading
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -123,17 +124,82 @@ class DatabaseManager:
             conn.close()
     
     def _get_connection(self):
-        """Get database connection"""
-        return sqlite3.connect(self.db_path, check_same_thread=False)
+        """
+        Get database connection with proper error handling
+        
+        Returns:
+            sqlite3.Connection: Database connection
+            
+        Raises:
+            sqlite3.Error: If connection fails
+        """
+        try:
+            conn = sqlite3.connect(
+                self.db_path,
+                check_same_thread=False,
+                timeout=10.0  # 10 second timeout
+            )
+            # Enable foreign keys
+            conn.execute("PRAGMA foreign_keys = ON")
+            # Use WAL mode for better concurrency
+            conn.execute("PRAGMA journal_mode = WAL")
+            return conn
+        except sqlite3.Error as e:
+            raise sqlite3.Error(f"Failed to connect to database at {self.db_path}: {e}")
+    
+    def _execute_with_retry(self, operation, max_retries=3):
+        """
+        Execute database operation with retry on lock
+        
+        Args:
+            operation: Callable that takes connection as argument
+            max_retries: Maximum number of retry attempts
+            
+        Returns:
+            Result from operation
+        """
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                conn = self._get_connection()
+                try:
+                    result = operation(conn)
+                    conn.commit()
+                    return result
+                finally:
+                    conn.close()
+            
+            except sqlite3.OperationalError as e:
+                last_error = e
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    # Database is locked, wait and retry
+                    time.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                    continue
+                else:
+                    raise
+            
+            except Exception as e:
+                # Don't retry on other errors
+                raise
+        
+        # If we get here, all retries failed
+        raise last_error
     
     # ==== Job History Methods ====
     
     def add_job(self, job_data: Dict[str, Any]) -> int:
-        """Add job to history"""
-        with self.lock:
-            conn = self._get_connection()
-            cursor = conn.cursor()
+        """
+        Add job to history with retry logic
+        
+        Args:
+            job_data: Dictionary with job information
             
+        Returns:
+            int: Job ID
+        """
+        def _add_operation(conn):
+            cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO job_history 
                 (job_name, file_path, container, status, start_time, end_time, 
@@ -151,18 +217,21 @@ class DatabaseManager:
                 job_data.get('output'),
                 job_data.get('error')
             ))
-            
-            job_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            return job_id
+            return cursor.lastrowid
+        
+        with self.lock:
+            return self._execute_with_retry(_add_operation)
     
     def update_job(self, job_id: int, updates: Dict[str, Any]):
-        """Update job record"""
-        with self.lock:
-            conn = self._get_connection()
+        """
+        Update job record with retry logic
+        
+        Args:
+            job_id: ID of job to update
+            updates: Dictionary of fields to update
+        """
+        def _update_operation(conn):
             cursor = conn.cursor()
-            
             set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
             values = list(updates.values()) + [job_id]
             
@@ -171,9 +240,10 @@ class DatabaseManager:
                 SET {set_clause}
                 WHERE id = ?
             ''', values)
-            
-            conn.commit()
-            conn.close()
+            return cursor.rowcount
+        
+        with self.lock:
+            return self._execute_with_retry(_update_operation)
     
     def get_job_history(self, limit: int = 50, status: str = None) -> List[Dict]:
         """Get job history"""
