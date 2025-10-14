@@ -1,0 +1,472 @@
+{
+  "imports_used": [
+    "advanced_ai_engine_v8",
+    "advanced_ai_tab_v8",
+    "advanced_cache",
+    "ai_code_generator_tab_v4_clean",
+    "anthropic",
+    "ast",
+    "asyncio",
+    "atexit",
+    "auto_recovery",
+    "backup_manager",
+    "code_quality_checker",
+    "collections",
+    "concurrent",
+    "connection_pool",
+    "contextlib",
+    "database",
+    "dataclasses",
+    "datetime",
+    "docker_compose_editor_v4",
+    "docker_health_monitor",
+    "docker_utils",
+    "enhanced_error_handler",
+    "enum",
+    "error_handler",
+    "error_handler_v2",
+    "functools",
+    "gc",
+    "google",
+    "hashlib",
+    "hdfs_upload_tab_v4_clean",
+    "hdfs_utils",
+    "health_check",
+    "health_monitoring_dashboard",
+    "heapq",
+    "input_sanitizer",
+    "java_unzip_util",
+    "json",
+    "logging",
+    "logging_config",
+    "metrics_system",
+    "modern_theme",
+    "openai",
+    "os",
+    "pathlib",
+    "performance_monitor_v4_clean",
+    "pickle",
+    "platform",
+    "psutil",
+    "queue",
+    "re",
+    "resource_manager",
+    "resource_optimizer",
+    "secrets",
+    "security_auditor",
+    "security_validator",
+    "select",
+    "settings_tab_v4",
+    "shutil",
+    "signal",
+    "socket",
+    "spark_backend",
+    "spark_runner_tab_v4_clean",
+    "sqlite3",
+    "statistics",
+    "subprocess",
+    "sys",
+    "system_optimizer",
+    "system_utils",
+    "tempfile",
+    "threading",
+    "time",
+    "tkinter",
+    "traceback",
+    "typing",
+    "urllib",
+    "validation",
+    "weakref",
+    "webbrowser",
+    "winreg",
+    "yaml"
+  ],
+  "packages_in_requirements": [
+    {
+      "name": "pyspark",
+      "version": ">=3.0.0,<4.0.0",
+      "line": 12,
+      "raw": "pyspark>=3.0.0,<4.0.0"
+    },
+    {
+      "name": "pyyaml",
+      "version": ">=5.4.0,<7.0.0",
+      "line": 15,
+      "raw": "pyyaml>=5.4.0,<7.0.0"
+    },
+    {
+      "name": "psutil",
+      "version": ">=5.8.0",
+      "line": 23,
+      "raw": "psutil>=5.8.0"
+    }
+  ],
+  "unused_packages": [
+    {
+      "package": "pyspark",
+      "version": ">=3.0.0,<4.0.0",
+      "line": 12,
+      "reason": "No import found in code"
+    }
+  ],
+  "missing_packages": [
+    {
+      "import_name": "health_check",
+      "package_name": "health_check",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "concurrent",
+      "package_name": "concurrent",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "metrics_system",
+      "package_name": "metrics_system",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "input_sanitizer",
+      "package_name": "input_sanitizer",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "statistics",
+      "package_name": "statistics",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "ai_code_generator_tab_v4_clean",
+      "package_name": "ai_code_generator_tab_v4_clean",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "system_optimizer",
+      "package_name": "system_optimizer",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "winreg",
+      "package_name": "winreg",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "tkinter",
+      "package_name": "tkinter",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "resource_manager",
+      "package_name": "resource_manager",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "health_monitoring_dashboard",
+      "package_name": "health_monitoring_dashboard",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "modern_theme",
+      "package_name": "modern_theme",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "system_utils",
+      "package_name": "system_utils",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "database",
+      "package_name": "database",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "resource_optimizer",
+      "package_name": "resource_optimizer",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "settings_tab_v4",
+      "package_name": "settings_tab_v4",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "hdfs_utils",
+      "package_name": "hdfs_utils",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "advanced_ai_tab_v8",
+      "package_name": "advanced_ai_tab_v8",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "hashlib",
+      "package_name": "hashlib",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "spark_backend",
+      "package_name": "spark_backend",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "docker_health_monitor",
+      "package_name": "docker_health_monitor",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "anthropic",
+      "package_name": "anthropic",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "advanced_cache",
+      "package_name": "advanced_cache",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "secrets",
+      "package_name": "secrets",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "queue",
+      "package_name": "queue",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "backup_manager",
+      "package_name": "backup_manager",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "spark_runner_tab_v4_clean",
+      "package_name": "spark_runner_tab_v4_clean",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "atexit",
+      "package_name": "atexit",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "error_handler_v2",
+      "package_name": "error_handler_v2",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "heapq",
+      "package_name": "heapq",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "logging_config",
+      "package_name": "logging_config",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "error_handler",
+      "package_name": "error_handler",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "security_validator",
+      "package_name": "security_validator",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "docker_utils",
+      "package_name": "docker_utils",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "openai",
+      "package_name": "openai",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "platform",
+      "package_name": "platform",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "socket",
+      "package_name": "socket",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "advanced_ai_engine_v8",
+      "package_name": "advanced_ai_engine_v8",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "connection_pool",
+      "package_name": "connection_pool",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "auto_recovery",
+      "package_name": "auto_recovery",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "hdfs_upload_tab_v4_clean",
+      "package_name": "hdfs_upload_tab_v4_clean",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "asyncio",
+      "package_name": "asyncio",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "security_auditor",
+      "package_name": "security_auditor",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "code_quality_checker",
+      "package_name": "code_quality_checker",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "webbrowser",
+      "package_name": "webbrowser",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "google",
+      "package_name": "google",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "enhanced_error_handler",
+      "package_name": "enhanced_error_handler",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "java_unzip_util",
+      "package_name": "java_unzip_util",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "signal",
+      "package_name": "signal",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "docker_compose_editor_v4",
+      "package_name": "docker_compose_editor_v4",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "gc",
+      "package_name": "gc",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "select",
+      "package_name": "select",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "validation",
+      "package_name": "validation",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "weakref",
+      "package_name": "weakref",
+      "reason": "Used in code but not in requirements.txt"
+    },
+    {
+      "import_name": "performance_monitor_v4_clean",
+      "package_name": "performance_monitor_v4_clean",
+      "reason": "Used in code but not in requirements.txt"
+    }
+  ],
+  "optimization_suggestions": [
+    {
+      "priority": "MEDIUM",
+      "type": "remove_unused",
+      "title": "Remove 1 unused packages",
+      "description": "These packages are listed in requirements.txt but not imported in code",
+      "packages": [
+        "pyspark"
+      ],
+      "action": "Review and remove if truly unused"
+    },
+    {
+      "priority": "HIGH",
+      "type": "add_missing",
+      "title": "Add 55 missing packages",
+      "description": "These packages are imported but not in requirements.txt",
+      "packages": [
+        "health_check",
+        "concurrent",
+        "metrics_system",
+        "input_sanitizer",
+        "statistics",
+        "ai_code_generator_tab_v4_clean",
+        "system_optimizer",
+        "winreg",
+        "tkinter",
+        "resource_manager",
+        "health_monitoring_dashboard",
+        "modern_theme",
+        "system_utils",
+        "database",
+        "resource_optimizer",
+        "settings_tab_v4",
+        "hdfs_utils",
+        "advanced_ai_tab_v8",
+        "hashlib",
+        "spark_backend",
+        "docker_health_monitor",
+        "anthropic",
+        "advanced_cache",
+        "secrets",
+        "queue",
+        "backup_manager",
+        "spark_runner_tab_v4_clean",
+        "atexit",
+        "error_handler_v2",
+        "heapq",
+        "logging_config",
+        "error_handler",
+        "security_validator",
+        "docker_utils",
+        "openai",
+        "platform",
+        "socket",
+        "advanced_ai_engine_v8",
+        "connection_pool",
+        "auto_recovery",
+        "hdfs_upload_tab_v4_clean",
+        "asyncio",
+        "security_auditor",
+        "code_quality_checker",
+        "webbrowser",
+        "google",
+        "enhanced_error_handler",
+        "java_unzip_util",
+        "signal",
+        "docker_compose_editor_v4",
+        "gc",
+        "select",
+        "validation",
+        "weakref",
+        "performance_monitor_v4_clean"
+      ],
+      "action": "Add to requirements.txt"
+    },
+    {
+      "priority": "LOW",
+      "type": "improve_documentation",
+      "title": "Improve requirements.txt documentation",
+      "description": "Add comments explaining what each package is used for",
+      "action": "Add descriptive comments for better maintainability"
+    }
+  ]
+}

@@ -381,7 +381,7 @@ class AdvancedAITabV8Optimized:
         
         tk.Label(
             header_content,
-            text="🤖 AI Engine V8.3",
+            text="🤖 AI API",
             bg='#24292F',
             fg='white',
             font=('Segoe UI', 16, 'bold')

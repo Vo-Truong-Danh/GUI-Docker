@@ -262,11 +262,10 @@ def load_config():
         
         # Use safe_execute if available
         if ERROR_HANDLER_AVAILABLE and error_handler:
-            config = safe_execute(
-                operation=load_and_parse,
-                context="Loading configuration file",
-                default_return=validate_config(default),
-                logger=app_logger
+            config = error_handler.safe_execute(
+                load_and_parse,
+                default=validate_config(default),
+                context="Loading configuration file"
             )
             return config
         else:
