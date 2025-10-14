@@ -579,32 +579,43 @@ You are NOT a teacher. You are a code printer."""
         )
     
     async def generate(self, prompt: str, context: Optional[str] = None) -> AnalysisResult:
-        """Generate with Gemini"""
+        """Generate with Gemini - STREAMING for longer responses"""
         await self.rate_limiter.acquire()
         start_time = time.time()
         
         try:
             full_prompt = f"{context}\n\n{prompt}" if context else prompt
             
-            # Strict generation config for code-only output
+            # Enhanced generation config for COMPLETE responses
             generation_config = genai.GenerationConfig(
                 temperature=self.config.temperature,
-                max_output_tokens=min(self.config.max_tokens, 2048),  # Limit to force conciseness
+                max_output_tokens=8192,  # INCREASED from 2048 to 8192
                 top_p=0.95,
                 top_k=40,
-                candidate_count=1,
-                stop_sequences=["```\n\n###", "```\n\n##", "---\n\n###"]  # Stop at explanations
+                candidate_count=1
+                # NO stop_sequences - let model finish naturally
             )
             
-            response = await asyncio.to_thread(
+            # Use streaming to handle long responses
+            response_chunks = []
+            
+            response_stream = await asyncio.to_thread(
                 self.model.generate_content,
                 full_prompt,
-                generation_config=generation_config
+                generation_config=generation_config,
+                stream=True
             )
+            
+            # Collect all chunks
+            for chunk in response_stream:
+                if hasattr(chunk, 'text'):
+                    response_chunks.append(chunk.text)
+            
+            full_response = ''.join(response_chunks)
             
             return AnalysisResult(
                 success=True,
-                response=response.text,
+                response=full_response,
                 tokens_used=0,
                 processing_time=time.time() - start_time,
                 cost=0.0,  # Free tier
@@ -800,19 +811,19 @@ class AdvancedAIEngine:
         # Extract schema
         schema = self.data_analyzer.extract_schema(data)
         
-        # Build context - MINIMAL (system instruction does the heavy lifting)
+        # Build context - Allow longer responses
         context = f"""Data: {schema.get('total_lines', 'N/A')} rows, Columns: {', '.join(schema.get('columns', [])[:3])}
 
 OUTPUT FORMAT:
 ```python
-# code here
+# Complete code here
 ```
 
-MAXIMUM 40 LINES."""
+IMPORTANT: Complete the ENTIRE code. DO NOT truncate or cut short."""
         
         # Build prompt - MORE FOCUSED
         if analysis_type == AnalysisType.QUICK:
-            data_sample = data[:3000]  # Reduced sample size
+            data_sample = data[:3000]
         else:
             data_sample = data[:1500] + "\n...\n" + data[-1500:]
         
@@ -822,10 +833,12 @@ MAXIMUM 40 LINES."""
 
 Task: {question}
 
+Generate COMPLETE code (no truncation):
+
 ```python"""
         
         # Generate with fallback and retry for incomplete responses
-        max_retries = 2
+        max_retries = 3  # INCREASED from 2 to 3
         for retry in range(max_retries):
             result = await self._generate_with_fallback(prompt, context)
             
@@ -841,8 +854,9 @@ Task: {question}
                 # Retry if quality too low and truncated
                 if quality_score < self.config.min_quality_score and retry < max_retries - 1:
                     logger.warning(f"⚠️ Low quality. Retrying {retry+1}/{max_retries}...")
-                    prompt = f"RETRY:\n\n{prompt}\n\nMAX 30 LINES"
-                    await asyncio.sleep(1)
+                    # More specific retry prompt
+                    prompt = f"{prompt}\n\n[PREVIOUS RESPONSE WAS INCOMPLETE - GENERATE FULL COMPLETE CODE]"
+                    await asyncio.sleep(2)  # INCREASED delay
                     continue
                 else:
                     break

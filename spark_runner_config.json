@@ -20,6 +20,6 @@
     "last_input_file": "hdfs://namenode:9870/input./harrypotter.txt",
     "last_output_path": "hdfs://namenode:9870/output"
   },
-  "ai_api_key": "1",
+  "ai_api_key": "",
   "ai_provider": "Gemini 2.5 Flash (Free)"
 }

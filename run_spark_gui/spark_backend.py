@@ -14,6 +14,12 @@ from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
 from typing import Optional, Callable, Tuple, List
+# Centralized error handler (optional)
+try:
+    from error_handler import get_error_handler, ErrorSeverity
+    _err_handler = get_error_handler()
+except Exception:
+    _err_handler = None
 
 # Import Docker utilities for auto-start feature
 try:
@@ -37,12 +43,13 @@ try:
 except ImportError as e:
     print(f"⚠️ Warning: Enhanced features (cache/database) not available: {e}")
     ENHANCED_FEATURES = False
-    # Create dummy decorators
+    # Create dummy decorators compatible with callers' signatures
     def timed(name):
         def decorator(func):
             return func
         return decorator
-    def retry_with_backoff(max_retries=3):
+    def retry_with_backoff(*_args, **_kwargs):
+        # Accept arbitrary kwargs like max_attempts, initial_delay for compatibility
         def decorator(func):
             return func
         return decorator
@@ -389,30 +396,40 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
     except subprocess.TimeoutExpired as e:
         if log_callback:
             log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command timeout', severity=ErrorSeverity.HIGH)
         return -1, '', f'Command timeout after {timeout}s'
     
     except subprocess.SubprocessError as e:
         # Specific subprocess errors (CalledProcessError, etc.)
         if log_callback:
             log_callback(f'❌ Subprocess error: {e}', 'error')
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command subprocess', severity=ErrorSeverity.HIGH)
         return -1, '', f'Subprocess failed: {e}'
     
     except FileNotFoundError as e:
         # Docker executable not found
         if log_callback:
             log_callback('❌ Docker executable not found. Is Docker installed?', 'error')
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command docker not found', severity=ErrorSeverity.CRITICAL)
         return -1, '', 'Docker not found. Please install Docker.'
     
     except PermissionError as e:
         # Permission denied to execute Docker
         if log_callback:
             log_callback(f'❌ Permission denied: {e}', 'error')
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command permission', severity=ErrorSeverity.HIGH)
         return -1, '', 'Permission denied. Please check Docker permissions.'
     
     except OSError as e:
         # OS-level errors (file descriptors, etc.)
         if log_callback:
             log_callback(f'❌ OS error: {e}', 'error')
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command os error', severity=ErrorSeverity.HIGH)
         return -1, '', f'System error: {e}'
     
     except Exception as e:
@@ -421,6 +438,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
             log_callback(f'❌ Unexpected error running command: {type(e).__name__}: {e}', 'error')
         import traceback
         traceback.print_exc()
+        if _err_handler:
+            _err_handler.handle_error(e, context='run_docker_command unexpected', severity=ErrorSeverity.HIGH)
         return -1, '', f'Unexpected error: {type(e).__name__}: {e}'
 
 

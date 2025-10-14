@@ -219,7 +219,7 @@ class SettingsTabV4:
     
     def create_port_settings(self, parent):
         """Create port configuration section with YAML support"""
-        port_card = SectionCard(parent, title="🔌 Port Configuration")
+        port_card = SectionCard(parent, title="Port Configuration")
         port_card.pack(fill=tk.X, pady=(0, Spacing.MD))
         
         content = port_card.get_content()
@@ -230,28 +230,28 @@ class SettingsTabV4:
         
         CleanButton(
             toolbar,
-            "� Load from Docker Compose",
+            "Load from Docker Compose",
             self.load_from_docker_compose,
             'primary'
         ).pack(side=tk.LEFT, padx=(0, Spacing.SM))
         
         CleanButton(
             toolbar,
-            "�📁 Load from YAML",
+            "Load from YAML",
             self.load_ports_from_yaml,
             'secondary'
         ).pack(side=tk.LEFT, padx=(0, Spacing.SM))
         
         CleanButton(
             toolbar,
-            "💾 Save to YAML",
+            "Save to YAML",
             self.save_ports_to_yaml,
             'secondary'
         ).pack(side=tk.LEFT, padx=(0, Spacing.SM))
         
         CleanButton(
             toolbar,
-            "➕ Add Port",
+            "Add Port",
             self.add_new_port,
             'success'
         ).pack(side=tk.LEFT, padx=(0, Spacing.SM))
@@ -326,19 +326,19 @@ class SettingsTabV4:
             'row': row
         }
         
-        # Open button
+        # Open button (no emoji)
         open_btn = CleanButton(
             row,
-            f"🌐 Open",
+            "Open",
             lambda k=key: self.open_in_browser(k),
             'secondary'
         )
         open_btn.pack(side=tk.LEFT, padx=(0, Spacing.SM))
         
-        # Delete button (for custom ports)
+        # Delete button (no emoji)
         delete_btn = CleanButton(
             row,
-            "🗑️",
+            "Delete",
             lambda k=key: self.delete_port(k),
             'danger'
         )

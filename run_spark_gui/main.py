@@ -49,7 +49,7 @@ except ImportError:
     error_handler = None
 
 try:
-    from input_sanitizer import InputSanitizer, InputValidator
+    from input_sanitizer import InputSanitizer
     INPUT_SANITIZER_AVAILABLE = True
     print("✅ Input sanitizer enabled")
 except ImportError:
@@ -352,6 +352,22 @@ class App:
         self.is_running = False
         self.auto_save_enabled = True
         self.last_save_time = datetime.now()
+
+        # Global exception hook to route uncaught exceptions to error handler
+        if ERROR_HANDLER_AVAILABLE and error_handler:
+            def _global_excepthook(exc_type, exc_value, exc_traceback):
+                try:
+                    import traceback
+                    error_handler.handle_error(
+                        exc_value,
+                        context="Uncaught exception",
+                        severity=ErrorSeverity.CRITICAL,
+                        show_dialog=False
+                    )
+                except Exception:
+                    # Fallback to default printing if error handler fails
+                    traceback.print_exception(exc_type, exc_value, exc_traceback)
+            sys.excepthook = _global_excepthook
         
         root.title(APP_TITLE)
         
@@ -492,11 +508,25 @@ class App:
             self.time_var.set(datetime.now().strftime("%H:%M:%S"))
             root.after(1000, update_time)
         update_time()
+
+        # Lightweight Health panel (inline) showing Docker status and recent errors
+        try:
+            from error_handler import get_error_handler
+            self._health_error_handler = get_error_handler(app_logger if LOGGING_AVAILABLE else None)
+        except Exception:
+            self._health_error_handler = None
         
         # Track active tab changes
         def on_tab_changed(event):
-            tab_names = ['Spark Runner', 'HDFS Upload', 'AI Code Generator', 
-                        'Performance Monitor', 'Docker Compose']
+            tab_names = [
+                'Spark Runner',
+                'HDFS Upload',
+                'AI Code Generator',
+                'AI API',
+                'Performance Monitor',
+                'Docker Compose',
+                'Settings'
+            ]
             current_tab = self.notebook.index(self.notebook.select())
             if current_tab < len(tab_names):
                 self.active_tab_var.set(f"📑 Tab: {tab_names[current_tab]}")
@@ -591,9 +621,12 @@ class App:
                 print("✅ AI API initialized successfully!")
                 print("✅ Integrated with Spark Runner for direct execution")
             except Exception as e:
-                print(f"⚠️ AI API initialization failed: {e}")
-                import traceback
-                traceback.print_exc()
+                if ERROR_HANDLER_AVAILABLE and error_handler:
+                    error_handler.handle_error(e, context="Initialize AI API tab", severity=ErrorSeverity.HIGH)
+                else:
+                    print(f"⚠️ AI API initialization failed: {e}")
+                    import traceback
+                    traceback.print_exc()
                 # Create fallback message in tab
                 error_label = tk.Label(
                     self.advanced_ai_tab,
@@ -694,9 +727,12 @@ class App:
             )
             print("✅ Docker Compose Editor initialized")
         except Exception as e:
-            print(f"⚠️ Docker Compose Editor initialization failed: {e}")
-            import traceback
-            traceback.print_exc()
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="Initialize Docker Compose Editor", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"⚠️ Docker Compose Editor initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
             # Create fallback message in tab
             error_label = tk.Label(
                 self.compose_tab,
@@ -719,9 +755,12 @@ class App:
             )
             print("✅ Settings Tab initialized")
         except Exception as e:
-            print(f"⚠️ Settings Tab initialization failed: {e}")
-            import traceback
-            traceback.print_exc()
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="Initialize Settings Tab", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"⚠️ Settings Tab initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
             # Create fallback message in tab
             error_label = tk.Label(
                 self.settings_tab,
@@ -813,6 +852,8 @@ class App:
         help_menu.add_command(label='Check for Updates', command=self.check_updates)
         help_menu.add_separator()
         help_menu.add_command(label='View Logs', command=self.view_app_logs)
+        help_menu.add_command(label='Recent Errors', command=self.view_recent_errors)
+        help_menu.add_command(label='System Health', command=self.show_system_health)
         help_menu.add_command(label='Report Issue', command=self.report_issue)
         help_menu.add_separator()
         help_menu.add_command(label='About', command=lambda: self.spark_runner.show_about())
@@ -912,7 +953,10 @@ class App:
                     self.perf_monitor.stop_monitoring()
             print("Cleanup completed.")
         except Exception as e:
-            print(f"Error during cleanup: {e}")
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="App cleanup", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"Error during cleanup: {e}")
 
     def signal_handler(self, signum, frame):
         """Handle Ctrl+C and other signals"""
@@ -996,6 +1040,67 @@ class App:
             log_text.insert('1.0', self.spark_runner.log_text_widget.get('1.0', tk.END))
         else:
             log_text.insert('1.0', 'No logs available yet.')
+
+    def view_recent_errors(self):
+        """Show recent errors collected by the central error handler"""
+        if not (ERROR_HANDLER_AVAILABLE and error_handler):
+            tk.messagebox.showinfo('Errors', 'Error handler is not available.')
+            return
+
+        stats = error_handler.get_error_stats()
+        errors = stats.get('recent_errors', [])
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Recent Errors ({len(errors)})")
+        win.geometry('900x500')
+
+        text = scrolledtext.ScrolledText(win, wrap=tk.WORD, bg='#1e1e1e', fg='#ffffff', font=('Courier New', 9))
+        text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        if not errors:
+            text.insert('1.0', 'No recent errors.')
+            return
+
+        # Render errors newest last for chronology
+        for item in errors:
+            line = (
+                f"[{item.get('timestamp','')}] {item.get('severity','').upper()} | {item.get('context','')}\n"
+                f"  {item.get('type','')}: {item.get('message','')}\n"
+            )
+            tb = item.get('traceback')
+            if tb:
+                line += tb + "\n"
+            line += '-' * 80 + "\n"
+            text.insert(tk.END, line)
+
+    def show_system_health(self):
+        """Run health checks and display a compact dashboard"""
+        try:
+            from health_check import health_checker
+        except Exception as e:
+            tk.messagebox.showerror('System Health', f'Health checker unavailable: {e}')
+            return
+
+        # Run checks using current config
+        results = health_checker.run_all_checks(self.config)
+        overall_status, overall_msg = health_checker.get_overall_health()
+
+        win = tk.Toplevel(self.root)
+        win.title('System Health')
+        win.geometry('800x500')
+
+        header = tk.Label(win, text=f"Overall: {overall_status.upper()} - {overall_msg}", font=('Segoe UI', 12, 'bold'))
+        header.pack(padx=10, pady=10, anchor=tk.W)
+
+        text = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Segoe UI', 10))
+        text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        for name, res in results.items():
+            try:
+                line = f"{res}\n"
+            except Exception:
+                line = f"{name}: {getattr(res, 'status', 'unknown')}\n"
+            text.insert(tk.END, line)
     
     def report_issue(self):
         """Open issue reporting dialog"""
