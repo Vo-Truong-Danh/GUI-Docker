@@ -10,6 +10,15 @@ Features:
 """
 
 import subprocess
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return popen_hidden(*args, **kwargs)
 import time
 import socket
 from typing import Dict, List, Tuple, Optional, Any
@@ -83,7 +92,7 @@ class HealthChecker:
         """
         try:
             start_time = time.time()
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker', 'info'],
                 capture_output=True,
                 timeout=timeout,
@@ -158,7 +167,7 @@ class HealthChecker:
         """
         try:
             # Check if container exists
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker', 'inspect', container_name],
                 capture_output=True,
                 timeout=timeout,
@@ -249,7 +258,7 @@ class HealthChecker:
         """
         try:
             # Test HDFS with simple ls command
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker', 'exec', container, 'hdfs', 'dfs', '-ls', hdfs_path],
                 capture_output=True,
                 timeout=timeout,
@@ -402,7 +411,7 @@ class HealthChecker:
                 )
             
             # Try to validate with docker-compose
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker-compose', '-f', compose_file, 'config'],
                 capture_output=True,
                 timeout=10,

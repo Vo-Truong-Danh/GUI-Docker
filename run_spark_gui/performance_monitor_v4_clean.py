@@ -6,6 +6,15 @@ Clean, minimal UI inspired by GitHub/VS Code
 import tkinter as tk
 from tkinter import ttk
 import subprocess
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return popen_hidden(*args, **kwargs)
 import threading
 import time
 from datetime import datetime
@@ -370,7 +379,7 @@ class PerformanceMonitorV4Clean:
         """Update statistics"""
         try:
             # Get docker stats
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker', 'stats', '--no-stream', '--format', 
                  '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}'],
                 capture_output=True,

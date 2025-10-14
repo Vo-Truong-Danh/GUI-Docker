@@ -14,6 +14,21 @@ from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
 from typing import Optional, Callable, Tuple, List
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import get_subprocess_params, run_hidden, popen_hidden
+    SUBPROCESS_UTILS_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: subprocess_utils not available, console windows may appear")
+    SUBPROCESS_UTILS_AVAILABLE = False
+    def get_subprocess_params():
+        return {}
+    def run_hidden(*args, **kwargs):
+        return subprocess.run(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return subprocess.Popen(*args, **kwargs)
+
 # Centralized error handler (optional)
 try:
     from error_handler import get_error_handler, ErrorSeverity
@@ -254,8 +269,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
     
     try:
         if stream_output and log_callback:
-            # Stream output in realtime
-            process = subprocess.Popen(
+            # Stream output in realtime - Use hidden console on Windows
+            process = popen_hidden(
                 cmd_list,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -370,8 +385,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                     return result
         
         else:
-            # Normal execution (no streaming)
-            result = subprocess.run(
+            # Normal execution (no streaming) - Use hidden console on Windows
+            result = run_hidden(
                 cmd_list,
                 capture_output=True,
                 text=True,

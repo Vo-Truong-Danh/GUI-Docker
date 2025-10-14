@@ -13,6 +13,13 @@ import time
 from typing import Tuple, Optional, Callable
 from pathlib import Path
 
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+
 
 class HDFSError(Exception):
     """Base exception for HDFS operations"""
@@ -46,7 +53,7 @@ def check_hdfs_safe_mode(container: str, log_callback: Optional[Callable] = None
         Tuple of (is_safe_mode: bool, message: str)
     """
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ['docker', 'exec', container, 'hdfs', 'dfsadmin', '-safemode', 'get'],
             capture_output=True,
             timeout=10,
@@ -136,7 +143,7 @@ def leave_safe_mode(container: str, log_callback: Optional[Callable] = None) -> 
         log_callback('   (This should only be done in development!)', 'warning')
     
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ['docker', 'exec', container, 'hdfs', 'dfsadmin', '-safemode', 'leave'],
             capture_output=True,
             timeout=10,
@@ -198,7 +205,7 @@ def install_package_in_container(
             if log_callback:
                 log_callback(f'   Trying: {" ".join(pm_cmd[:2])}...', 'info')
             
-            result = subprocess.run(
+            result = run_hidden(
                 cmd,
                 capture_output=True,
                 timeout=120,  # 2 minutes for package installation
@@ -248,7 +255,7 @@ def verify_hdfs_file(
         Tuple of (exists: bool, message: str)
     """
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', hdfs_path],
             capture_output=True,
             timeout=10,
@@ -257,7 +264,7 @@ def verify_hdfs_file(
         
         if result.returncode == 0:
             # File exists, get size
-            size_result = subprocess.run(
+            size_result = run_hidden(
                 ['docker', 'exec', container, 'hdfs', 'dfs', '-du', '-h', hdfs_path],
                 capture_output=True,
                 timeout=10,
@@ -365,7 +372,7 @@ def upload_to_hdfs_with_retry(
             if log_callback:
                 log_callback(f'📤 Uploading to HDFS (attempt {attempt+1}/{max_retries})...', 'info')
             
-            result = subprocess.run(
+            result = run_hidden(
                 ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f', local_file, hdfs_path],
                 capture_output=True,
                 timeout=300,  # 5 minutes

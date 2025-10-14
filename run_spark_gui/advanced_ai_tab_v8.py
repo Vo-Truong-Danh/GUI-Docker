@@ -15,6 +15,15 @@ import threading
 import asyncio
 import os
 import subprocess
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return popen_hidden(*args, **kwargs)
 from pathlib import Path
 
 # Import AI API engine
@@ -48,7 +57,7 @@ def get_hdfs_files(hdfs_path="/", hdfs_host="namenode", hdfs_port="8020"):
             hdfs_path = hdfs_path.rstrip('/')
         
         cmd = f"docker exec namenode hdfs dfs -ls {hdfs_path}"
-        result = subprocess.run(
+        result = run_hidden(
             cmd,
             shell=True,
             capture_output=True,

@@ -48,7 +48,8 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - [📸 Screenshots](#-screenshots)
 - [🔧 Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
 - [⚙️ Cài Đặt](#️-cài-đặt)
-- [🚀 Sử Dụng](#-sử-dụng)
+- [� Build Standalone Executable](#-build-standalone-executable)
+- [�🚀 Sử Dụng](#-sử-dụng)
 - [📖 Hướng Dẫn Chi Tiết](#-hướng-dẫn-chi-tiết)
 - [⌨️ Phím Tắt](#️-phím-tắt)
 - [🛠️ Cấu Hình](#️-cấu-hình)
@@ -85,7 +86,37 @@ CleanButton(row, "Open", ...)                         # ✅ Hiển thị đúng
 
 ---
 
-#### 2. **AI API Complete Response Fix**
+#### 2. **Hidden Console Windows Fix** 🆕
+**Vấn đề:** Khi chạy file .exe, mỗi lần run Spark job/HDFS command xuất hiện cửa sổ CMD đen  
+**Giải pháp:** Ẩn tất cả console windows khi chạy subprocess
+
+**Thay đổi:**
+```python
+# TRƯỚC - Console window xuất hiện
+subprocess.run(['docker', 'exec', ...])
+
+# SAU - Console ẩn hoàn toàn
+run_hidden(['docker', 'exec', ...])  # Uses CREATE_NO_WINDOW on Windows
+```
+
+**Files đã fix:**
+- ✅ `run_spark_gui/subprocess_utils.py` (NEW - utility module)
+- ✅ `run_spark_gui/spark_backend.py`
+- ✅ `run_spark_gui/hdfs_utils.py`
+- ✅ `run_spark_gui/hdfs_upload_tab_v4_clean.py`
+- ✅ `run_spark_gui/java_unzip_util.py`
+- ✅ `run_spark_gui/health_check.py`
+- ✅ `run_spark_gui/performance_monitor_v4_clean.py`
+- ✅ `run_spark_gui/advanced_ai_tab_v8.py`
+
+**Kết quả:**
+- ✅ Không còn cửa sổ CMD nhấp nháy
+- ✅ UI mượt mà, professional
+- ✅ Background processes hoàn toàn vô hình
+
+---
+
+#### 3. **AI API Complete Response Fix**
 **Vấn đề:** Câu hỏi phức tạp → kết quả bị cắt giữa chừng (truncated)  
 **Giải pháp:** Nâng cấp streaming, tăng token limit, cải thiện retry logic
 
@@ -202,6 +233,47 @@ IMPORTANT: Complete the ENTIRE code. DO NOT truncate or cut short."""  # ✅ Nh�
 - Response time: +10-20% (acceptable for quality)
 - Completion rate: +35% (70% → 95%)
 - Quality score: +0.15 (0.65 → 0.80)
+
+---
+
+#### 4. **Application Icon Support** 🆕
+**Tính năng mới:** Build executable với icon chuyên nghiệp
+
+**Quick Start:**
+```powershell
+# Tạo icon tự động
+python create_icon.py
+
+# Build với icon
+.\build.bat
+```
+
+**Kết quả:**
+- ✅ Icon hiển thị trong file explorer (file .exe)
+- ✅ Icon hiển thị trong window title bar (góc trái)
+- ✅ Icon hiển thị trong taskbar (khi app chạy)
+- ✅ Icon hiển thị trong Alt+Tab switcher
+- ✅ Professional, branded look
+
+**Technical Implementation:**
+- `root.iconbitmap()` - Window icon
+- `SetCurrentProcessExplicitAppUserModelID()` - Unique app ID
+- `SendMessageW(WM_SETICON)` - Taskbar icon (Windows API)
+- PyInstaller `--icon=icon.ico` - File icon
+
+**Files mới:**
+- `create_icon.py` - Auto-generate icon script
+- `icon.ico` - Application icon (auto-created)
+- `ADD_ICON_GUIDE.md` - Comprehensive icon guide
+- `ICON_QUICK_START.md` - Quick reference
+- `TASKBAR_ICON_FIX.md` - Taskbar icon technical docs
+
+**Build scripts updated:**
+- `build.bat` - Auto-detect and include icon
+- `build_config.spec` - Icon support configuration
+- `run_spark_gui/main.py` - Icon loading + Windows API integration
+
+**Docs:** See [TASKBAR_ICON_FIX.md](TASKBAR_ICON_FIX.md) for technical details
 
 ---
 
@@ -460,7 +532,79 @@ python --version
 
 ---
 
-## 🚀 Sử Dụng
+## � Build Standalone Executable
+
+### 🎨 With Custom Icon (Recommended)
+
+```powershell
+# Step 1: Create icon automatically
+python create_icon.py
+
+# Step 2: Build executable with icon
+.\build.bat
+```
+
+**Result:** `dist\SparkRunnerGUI.exe` with professional icon ✨
+
+### ⚡ Quick Build (No Icon)
+
+```powershell
+# Build without custom icon
+.\build.bat
+```
+
+### 🔧 Advanced Build Options
+
+#### Option 1: Using build_config.spec
+```powershell
+pyinstaller build_config.spec --noconfirm
+```
+
+#### Option 2: Custom icon
+```powershell
+# 1. Create your own icon.ico (256x256 recommended)
+# 2. Place in GUI-Docker/ folder
+# 3. Build
+.\build.bat
+```
+
+### 📝 Build Documentation
+
+- **Quick Start:** [ICON_QUICK_START.md](ICON_QUICK_START.md)
+- **Detailed Guide:** [ADD_ICON_GUIDE.md](ADD_ICON_GUIDE.md)
+- **Build Instructions:** [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md)
+- **Build Summary:** [BUILD_SUMMARY.md](BUILD_SUMMARY.md)
+
+### ✅ Build Output
+
+```
+dist/
+  └── SparkRunnerGUI.exe    # Standalone executable (30-50 MB)
+```
+
+**Features:**
+- ✅ Single .exe file (no installation needed)
+- ✅ Includes all dependencies
+- ✅ Custom icon (if created)
+- ✅ Hidden console windows
+- ✅ Windows 10/11 compatible
+
+### 🚀 Distribution
+
+```powershell
+# Create release package
+mkdir SparkRunnerGUI_v6.0.1
+copy dist\SparkRunnerGUI.exe SparkRunnerGUI_v6.0.1\
+copy README.md SparkRunnerGUI_v6.0.1\
+copy docker-compose.yml SparkRunnerGUI_v6.0.1\
+
+# Compress
+Compress-Archive -Path SparkRunnerGUI_v6.0.1 -DestinationPath SparkRunnerGUI_v6.0.1.zip
+```
+
+---
+
+## �🚀 Sử Dụng
 
 ### Quick Start
 
@@ -909,7 +1053,17 @@ logging.basicConfig(level=logging.DEBUG)
 - 📁 **File:** `run_spark_gui/settings_tab_v4.py`
 - 🎯 **Impact:** Buttons now display correctly on all systems
 
-**2. AI API Complete Response Fix**
+**2. Hidden Console Windows Fix** 🆕
+- ❌ **Issue:** CMD windows flash when running Spark jobs/HDFS commands in .exe
+- ✅ **Fix:** All subprocess calls now use CREATE_NO_WINDOW flag on Windows
+- 📁 **Files:** 8 files updated with `subprocess_utils.py` helper
+- 🎯 **Impact:** 
+  - No more flashing CMD windows
+  - Professional, smooth UI experience
+  - Background processes completely invisible
+  - Fixed in: spark_backend, hdfs_utils, hdfs_upload, java_unzip, health_check, performance_monitor, advanced_ai
+
+**3. AI API Complete Response Fix**
 - ❌ **Issue:** Complex questions causing truncated responses (cut mid-way)
 - ✅ **Fix:** Enhanced streaming, increased token limit, improved retry logic
 - 📁 **File:** `run_spark_gui/advanced_ai_engine_v8.py`
@@ -931,6 +1085,7 @@ logging.basicConfig(level=logging.DEBUG)
 | **Stop Sequences** | 3 rules | None | Natural completion |
 | **Retry Delay** | 1s | 2s | Better stability |
 | **Button Icons** | Emoji | Plain text | Universal compatibility |
+| **Console Windows** | Visible ❌ | Hidden ✅ | Professional UX |
 
 #### 🎯 Performance Impact
 
@@ -938,6 +1093,12 @@ logging.basicConfig(level=logging.DEBUG)
 - Completion rate: +35% improvement
 - Quality score: +0.15 improvement
 - Icon rendering: 100% compatibility
+- User experience: Significantly improved (no console flashing)
+
+#### 🆕 New Files
+
+- `run_spark_gui/subprocess_utils.py` - Helper for hidden console windows
+- `fix_subprocess.py` - Auto-fix script for subprocess calls
 
 ---
 

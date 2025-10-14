@@ -9,6 +9,17 @@ import re
 import subprocess
 from pathlib import Path
 from datetime import datetime
+import platform
+
+# Windows-specific imports for taskbar icon
+if platform.system() == 'Windows':
+    try:
+        import ctypes
+        WINDOWS_AVAILABLE = True
+    except ImportError:
+        WINDOWS_AVAILABLE = False
+else:
+    WINDOWS_AVAILABLE = False
 
 # Import enhanced modules
 try:
@@ -116,9 +127,9 @@ except ImportError as e:
 print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
-APP_TITLE = "Spark Runner GUI V6.0"
+APP_TITLE = "Spark Runner GUI V1.0"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "6.0.0"  # Enhanced with resource management, backup, and improved error handling
+VERSION = "1.0.0"  # Initial version
 
 INFO_TEXT = ""  # Removed to save space
 
@@ -370,6 +381,28 @@ class App:
             sys.excepthook = _global_excepthook
         
         root.title(APP_TITLE)
+        
+        # Set window icon (for title bar) - MUST be called early
+        self.icon_path = None
+        try:
+            # Try to load icon.ico from application directory
+            if getattr(sys, 'frozen', False):
+                # Running as compiled executable - icon is in _MEIPASS temp folder
+                icon_path = os.path.join(sys._MEIPASS, 'icon.ico')
+            else:
+                # Running as script
+                icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icon.ico')
+            
+            if os.path.exists(icon_path):
+                root.iconbitmap(icon_path)
+                self.icon_path = icon_path
+            elif os.path.exists('icon.ico'):
+                root.iconbitmap('icon.ico')
+                self.icon_path = os.path.abspath('icon.ico')
+        except Exception as e:
+            # Icon loading failed, continue without icon
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.warning(f"Could not load window icon: {e}")
         
         # Set window to maximized/full screen on startup
         root.state('zoomed')  # Windows: maximized
@@ -790,6 +823,9 @@ class App:
         
         # Auto-check Docker status on startup and update status bar
         self.root.after(1000, self.check_docker_status_startup)
+        
+        # Set taskbar icon AFTER window is fully loaded (Windows-specific)
+        self.root.after(500, self.set_taskbar_icon)
 
         # Initialize file history
         if self.config['history']:
@@ -880,6 +916,60 @@ class App:
         """Update Docker status in status bar"""
         if hasattr(self, 'docker_status_var'):
             self.docker_status_var.set(f"🐳 Docker: {status_text}")
+    
+    def set_taskbar_icon(self):
+        """Set taskbar icon using Windows API - called after window is fully loaded"""
+        if not WINDOWS_AVAILABLE or not self.icon_path:
+            return
+        
+        try:
+            # Method 1: Set AppUserModelID (makes Windows treat this as unique app)
+            myappid = 'spark.runner.gui.v6.0'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            
+            # Method 2: Set icon using Windows API
+            if os.path.exists(self.icon_path):
+                # Force window update
+                self.root.update_idletasks()
+                self.root.update()
+                
+                # Get window handle
+                hwnd = int(self.root.wm_frame(), 16)  # Use wm_frame() instead of winfo_id()
+                
+                # Load icon with proper flags
+                LR_LOADFROMFILE = 0x00000010
+                LR_DEFAULTSIZE = 0x00000040
+                IMAGE_ICON = 1
+                
+                hicon = ctypes.windll.user32.LoadImageW(
+                    None,  # hInst = NULL (load from file)
+                    self.icon_path,
+                    IMAGE_ICON,
+                    0,  # desired width (0 = default)
+                    0,  # desired height (0 = default)
+                    LR_LOADFROMFILE | LR_DEFAULTSIZE
+                )
+                
+                if hicon:
+                    # Send WM_SETICON message to window
+                    WM_SETICON = 0x0080
+                    ICON_SMALL = 0  # 16x16 for taskbar
+                    ICON_BIG = 1    # 32x32 for Alt+Tab
+                    
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
+                    
+                    if LOGGING_AVAILABLE and app_logger:
+                        app_logger.info(f"Taskbar icon set successfully: {self.icon_path}")
+                else:
+                    if LOGGING_AVAILABLE and app_logger:
+                        app_logger.warning(f"Failed to load icon: {self.icon_path}")
+                        
+        except Exception as e:
+            if LOGGING_AVAILABLE and app_logger:
+                app_logger.warning(f"Could not set taskbar icon: {e}")
+            # Don't crash - just log the error
+            pass
     
     def check_docker_status_startup(self):
         """Check Docker status on startup and update status bar"""

@@ -10,6 +10,15 @@ Date: October 13, 2025
 """
 
 import subprocess
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return popen_hidden(*args, **kwargs)
 import tempfile
 from pathlib import Path
 from typing import Tuple, Optional, Callable
@@ -112,7 +121,7 @@ def check_java_available(container: str, log_callback: Optional[Callable] = None
         Tuple of (available: bool, java_version: str)
     """
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ['docker', 'exec', container, 'java', '-version'],
             capture_output=True,
             timeout=10,
@@ -163,14 +172,14 @@ def setup_java_unzip(container: str, log_callback: Optional[Callable] = None) ->
         
         # Step 1: Create temp directory in container
         mkdir_cmd = ['docker', 'exec', container, 'mkdir', '-p', '/tmp/java_utils']
-        subprocess.run(mkdir_cmd, capture_output=True, timeout=10)
+        run_hidden(mkdir_cmd, capture_output=True, timeout=10)
         
         # Step 2: Write Java code to container
         # Use echo to write the Java code (multi-line)
         write_cmd = ['docker', 'exec', container, 'sh', '-c', 
                      f'cat > /tmp/java_utils/SimpleUnzip.java << \'EOFMARKER\'\n{JAVA_UNZIP_CODE}\nEOFMARKER']
         
-        result = subprocess.run(write_cmd, capture_output=True, timeout=10, text=True)
+        result = run_hidden(write_cmd, capture_output=True, timeout=10, text=True)
         
         if result.returncode != 0:
             if log_callback:
@@ -185,7 +194,7 @@ def setup_java_unzip(container: str, log_callback: Optional[Callable] = None) ->
             log_callback('   ⚙️ Compiling Java code...', 'info')
         
         compile_cmd = ['docker', 'exec', container, 'javac', '/tmp/java_utils/SimpleUnzip.java']
-        result = subprocess.run(compile_cmd, capture_output=True, timeout=30, text=True)
+        result = run_hidden(compile_cmd, capture_output=True, timeout=30, text=True)
         
         if result.returncode != 0:
             if log_callback:
@@ -197,7 +206,7 @@ def setup_java_unzip(container: str, log_callback: Optional[Callable] = None) ->
         
         # Step 4: Verify .class file exists
         verify_cmd = ['docker', 'exec', container, 'test', '-f', '/tmp/java_utils/SimpleUnzip.class']
-        result = subprocess.run(verify_cmd, capture_output=True, timeout=10)
+        result = run_hidden(verify_cmd, capture_output=True, timeout=10)
         
         if result.returncode != 0:
             if log_callback:
@@ -241,7 +250,7 @@ def unzip_with_java(
     try:
         # Check if Java unzip utility is set up
         check_cmd = ['docker', 'exec', container, 'test', '-f', '/tmp/java_utils/SimpleUnzip.class']
-        result = subprocess.run(check_cmd, capture_output=True, timeout=10)
+        result = run_hidden(check_cmd, capture_output=True, timeout=10)
         
         if result.returncode != 0:
             # Setup not done yet, do it now
@@ -253,7 +262,7 @@ def unzip_with_java(
         
         # Create output directory
         mkdir_cmd = ['docker', 'exec', container, 'mkdir', '-p', output_dir]
-        subprocess.run(mkdir_cmd, capture_output=True, timeout=10)
+        run_hidden(mkdir_cmd, capture_output=True, timeout=10)
         
         # Run Java unzip
         if log_callback:
@@ -267,7 +276,7 @@ def unzip_with_java(
             output_dir
         ]
         
-        result = subprocess.run(unzip_cmd, capture_output=True, timeout=300, text=True)
+        result = run_hidden(unzip_cmd, capture_output=True, timeout=300, text=True)
         
         if result.returncode == 0:
             # Parse success message (e.g., "Extracted 42 files")
@@ -340,14 +349,14 @@ def extract_and_upload_to_hdfs(
             log_callback(f'📁 Step 2: Creating HDFS directory...', 'info')
         
         mkdir_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-mkdir', '-p', hdfs_target_dir]
-        subprocess.run(mkdir_cmd, capture_output=True, timeout=30)
+        run_hidden(mkdir_cmd, capture_output=True, timeout=30)
         
         # Step 3: List extracted files
         if log_callback:
             log_callback(f'📋 Step 3: Listing extracted files...', 'info')
         
         ls_cmd = ['docker', 'exec', container, 'sh', '-c', f'find {extract_dir} -type f']
-        result = subprocess.run(ls_cmd, capture_output=True, timeout=30, text=True)
+        result = run_hidden(ls_cmd, capture_output=True, timeout=30, text=True)
         
         if result.returncode != 0 or not result.stdout.strip():
             return False, "No files found after extraction", 0
@@ -370,11 +379,11 @@ def extract_and_upload_to_hdfs(
             # Create parent directory in HDFS
             hdfs_parent = '/'.join(hdfs_file_path.split('/')[:-1])
             mkdir_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-mkdir', '-p', hdfs_parent]
-            subprocess.run(mkdir_cmd, capture_output=True, timeout=30)
+            run_hidden(mkdir_cmd, capture_output=True, timeout=30)
             
             # Upload file
             put_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f', file_path, hdfs_file_path]
-            result = subprocess.run(put_cmd, capture_output=True, timeout=120, text=True)
+            result = run_hidden(put_cmd, capture_output=True, timeout=120, text=True)
             
             if result.returncode == 0:
                 uploaded += 1
@@ -390,7 +399,7 @@ def extract_and_upload_to_hdfs(
             log_callback(f'🧹 Step 5: Cleaning up temp files...', 'info')
         
         rm_cmd = ['docker', 'exec', container, 'rm', '-rf', extract_dir]
-        subprocess.run(rm_cmd, capture_output=True, timeout=30)
+        run_hidden(rm_cmd, capture_output=True, timeout=30)
         
         if log_callback:
             log_callback(f'✅ Upload complete: {uploaded}/{len(extracted_files)} files', 'success')

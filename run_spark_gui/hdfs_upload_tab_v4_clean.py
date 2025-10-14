@@ -12,6 +12,15 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 import subprocess
+
+# Import subprocess utilities for hidden console windows
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    def run_hidden(*args, **kwargs):
+        return run_hidden(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return popen_hidden(*args, **kwargs)
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -798,7 +807,7 @@ class HDFSUploadTabV4Clean:
                     self.log("🔄 Thread started successfully", 'info')
                     self.log(f"💻 Executing: docker exec {container} hdfs dfs -ls /", 'info')
                     
-                    result = subprocess.run(
+                    result = run_hidden(
                         ['docker', 'exec', container, 'hdfs', 'dfs', '-ls', '/'],
                         capture_output=True,
                         text=True,
@@ -873,7 +882,7 @@ class HDFSUploadTabV4Clean:
         try:
             # Execute ls command
             cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-ls', hdfs_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = run_hidden(cmd, capture_output=True, text=True, timeout=10)
             
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
@@ -928,7 +937,7 @@ class HDFSUploadTabV4Clean:
         try:
             # Use -test -e to check existence
             cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', hdfs_path]
-            result = subprocess.run(cmd, capture_output=True, timeout=5)
+            result = run_hidden(cmd, capture_output=True, timeout=5)
             
             exists = (result.returncode == 0)
             
@@ -980,7 +989,7 @@ class HDFSUploadTabV4Clean:
             
             # Fallback: Try traditional unzip command
             check_cmd = ['docker', 'exec', container, 'which', 'unzip']
-            check_result = subprocess.run(check_cmd, capture_output=True, timeout=5)
+            check_result = run_hidden(check_cmd, capture_output=True, timeout=5)
             
             if check_result.returncode != 0:
                 self.log(f"      ⚠️ 'unzip' not found in container", 'warning')
@@ -996,7 +1005,7 @@ class HDFSUploadTabV4Clean:
                     # Legacy install method
                     install_cmd = ['docker', 'exec', container, 'sh', '-c',
                                  'apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1']
-                    install_result = subprocess.run(install_cmd, capture_output=True, timeout=60)
+                    install_result = run_hidden(install_cmd, capture_output=True, timeout=60)
                     install_success = (install_result.returncode == 0)
                 
                 if not install_success:
@@ -1038,11 +1047,11 @@ class HDFSUploadTabV4Clean:
         try:
             # Create extraction directory
             mkdir_cmd = ['docker', 'exec', container, 'mkdir', '-p', f'/tmp/extracted_{index}']
-            subprocess.run(mkdir_cmd, capture_output=True, timeout=10)
+            run_hidden(mkdir_cmd, capture_output=True, timeout=10)
             
             # Extract file
             self.log(f"      💻 Extracting {filename}...", 'normal')
-            extract_result = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=180)
+            extract_result = run_hidden(extract_cmd, capture_output=True, text=True, timeout=180)
             
             if extract_result.returncode != 0:
                 error_msg = extract_result.stderr.strip() if extract_result.stderr else "Unknown error"
@@ -1055,7 +1064,7 @@ class HDFSUploadTabV4Clean:
                     self.log(f"      ℹ️  Output: {stdout_msg}", 'info')
                 
                 # Cleanup
-                subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                              capture_output=True, timeout=10)
                 return False
             
@@ -1063,11 +1072,11 @@ class HDFSUploadTabV4Clean:
             
             # List extracted files
             ls_cmd = ['docker', 'exec', container, 'sh', '-c', f'ls -A /tmp/extracted_{index}']
-            ls_result = subprocess.run(ls_cmd, capture_output=True, text=True, timeout=10)
+            ls_result = run_hidden(ls_cmd, capture_output=True, text=True, timeout=10)
             
             if ls_result.returncode != 0 or not ls_result.stdout.strip():
                 self.log(f"      ⚠️ No files found after extraction", 'warning')
-                subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+                run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                              capture_output=True, timeout=10)
                 return False
             
@@ -1077,7 +1086,7 @@ class HDFSUploadTabV4Clean:
             # Create HDFS directory for extracted files
             extract_hdfs_dir = f"{hdfs_path.rstrip('/')}/{extract_dir_name}"
             mkdir_hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-mkdir', '-p', extract_hdfs_dir]
-            subprocess.run(mkdir_hdfs_cmd, capture_output=True, timeout=30)
+            run_hidden(mkdir_hdfs_cmd, capture_output=True, timeout=30)
             
             # Upload each extracted file/folder to HDFS
             self.log(f"      💻 Uploading extracted files to HDFS...", 'normal')
@@ -1092,7 +1101,7 @@ class HDFSUploadTabV4Clean:
                 
                 put_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
                           item_path, hdfs_target]
-                put_result = subprocess.run(put_cmd, capture_output=True, text=True, timeout=120)
+                put_result = run_hidden(put_cmd, capture_output=True, text=True, timeout=120)
                 
                 if put_result.returncode == 0:
                     upload_success += 1
@@ -1106,19 +1115,19 @@ class HDFSUploadTabV4Clean:
                 self.log(f"      ❌ No files uploaded to HDFS", 'error')
             
             # Cleanup extraction directory
-            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+            run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
             
             return upload_success > 0
             
         except subprocess.TimeoutExpired:
             self.log(f"      ⚠️ Extraction timeout", 'warning')
-            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+            run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
             return False
         except Exception as e:
             self.log(f"      ⚠️ Extraction error: {str(e)}", 'warning')
-            subprocess.run(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
+            run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
             return False
     
@@ -1205,7 +1214,7 @@ class HDFSUploadTabV4Clean:
                 mkdir_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-mkdir', '-p', hdfs_path]
                 self.log(f"  💻 $ hdfs dfs -mkdir -p {hdfs_path}", 'normal')
                 
-                mkdir_result = subprocess.run(mkdir_cmd, capture_output=True, text=True, timeout=30)
+                mkdir_result = run_hidden(mkdir_cmd, capture_output=True, text=True, timeout=30)
                 if mkdir_result.returncode == 0:
                     self.log(f"  ✓ Directory ready: {hdfs_path}", 'success')
                 else:
@@ -1252,7 +1261,7 @@ class HDFSUploadTabV4Clean:
                         self.log(f"      Step 1/4: Copy to container", 'info')
                         self.log(f"      💻 $ docker cp \"{filename}\" {container}:/tmp/", 'normal')
                         
-                        result = subprocess.run(copy_cmd, check=True, capture_output=True, timeout=60, text=True)
+                        result = run_hidden(copy_cmd, check=True, capture_output=True, timeout=60, text=True)
                         self.log(f"      ✓ Copied to container /tmp/", 'success')
                         
                         # Step 2: Put to HDFS with safe mode handling and retry
@@ -1274,7 +1283,7 @@ class HDFSUploadTabV4Clean:
                                        f'/tmp/{filename}', target_path]
                             self.log(f"      💻 $ hdfs dfs -put -f /tmp/{filename} {target_path}", 'normal')
                             
-                            result = subprocess.run(hdfs_cmd, capture_output=True, text=True, timeout=60)
+                            result = run_hidden(hdfs_cmd, capture_output=True, text=True, timeout=60)
                             success_upload = (result.returncode == 0)
                             upload_msg = result.stderr.strip() if result.stderr else "Upload failed"
                         
@@ -1349,7 +1358,7 @@ class HDFSUploadTabV4Clean:
                             else:
                                 # Legacy verification
                                 verify_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-test', '-e', target_path]
-                                verify_result = subprocess.run(verify_cmd, capture_output=True, timeout=10)
+                                verify_result = run_hidden(verify_cmd, capture_output=True, timeout=10)
                                 if verify_result.returncode == 0:
                                     self.log(f"      Step 3/4: File verified in HDFS ✓", 'success')
                                 else:
@@ -1359,7 +1368,7 @@ class HDFSUploadTabV4Clean:
                         
                         # Step 4: Cleanup temp file on container
                         self.log(f"      Step 4/4: Cleanup temp file", 'info')
-                        subprocess.run(['docker', 'exec', container, 'rm', '-f', f'/tmp/{filename}'],
+                        run_hidden(['docker', 'exec', container, 'rm', '-f', f'/tmp/{filename}'],
                                      capture_output=True, timeout=10)
                         self.log(f"      ✓ Cleaned up /tmp/{filename}", 'success')
                         
