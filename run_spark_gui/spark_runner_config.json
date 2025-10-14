@@ -1,21 +1,23 @@
 {
-    "container": "spark-worker",
-    "master": "spark://spark-master:7077",
-    "hdfs_container": "namenode",
-    "hdfs_host": "hdfs://namenode:9870",
-    "hdfs_default_path": "/user/spark/data",
-    "auto_extract_archives": true,
-    "delete_archive_after_extract": true,
-    "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
-    "history": [
-        "D:/BaiTapSinhVien/TH BigData/Tuan02/mangluoituongtacnhanvat.py",
-        "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py"
-    ],
-    "hdfs_path": "/input",
-    "hdfs_port": "9870",
-    "auto_extract": true,
-    "ai_code_generator": {
-        "last_input_file": "hdfs://namenode:9870/input./harrypotter.txt",
-        "last_output_path": "hdfs://namenode:9870/output"
-    }
+  "container": "spark-worker",
+  "master": "spark://spark-master:7077",
+  "hdfs_container": "namenode",
+  "hdfs_host": "hdfs://namenode:9870",
+  "hdfs_default_path": "/user/spark/data",
+  "auto_extract_archives": true,
+  "delete_archive_after_extract": true,
+  "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
+  "history": [
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/mangluoituongtacnhanvat.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py"
+  ],
+  "hdfs_path": "/input",
+  "hdfs_port": "9870",
+  "auto_extract": true,
+  "ai_code_generator": {
+    "last_input_file": "hdfs://namenode:9870/input./harrypotter.txt",
+    "last_output_path": "hdfs://namenode:9870/output"
+  },
+  "ai_api_key": "AIzaSyBAXWlXvoEgO36ZW7dQlxsq06y_5v_MEi8",
+  "ai_provider": "Gemini 2.5 Flash (Free)"
 }

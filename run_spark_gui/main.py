@@ -101,6 +101,18 @@ print("🔄 Loading Docker Compose Editor V4...")
 from docker_compose_editor_v4 import DockerComposeEditorV4
 print("🔄 Loading Settings Tab V4...")
 from settings_tab_v4 import SettingsTabV4
+
+# Import AI Engine V8.3 (PySpark + Real HDFS + Fixed Provider Mapping)
+try:
+    print("🔄 Loading AI Engine V8.3...")
+    from advanced_ai_tab_v8 import AdvancedAITabV8 as AdvancedAITab
+    ADVANCED_AI_AVAILABLE = True
+    print("✅ AI Engine V8.3 loaded successfully!")
+except ImportError as e:
+    print(f"❌ Error loading AI Engine V8.3: {e}")
+    ADVANCED_AI_AVAILABLE = False
+    AdvancedAITab = None
+
 print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
@@ -385,19 +397,23 @@ class App:
         self.hdfs_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.hdfs_tab, text='📤 HDFS Upload')
         
-        # Tab 3: AI Code Generator
+        # Tab 3: AI Code Generator (Old)
         self.ai_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.ai_tab, text='🤖 AI Code Generator')
         
-        # Tab 4: Performance Monitor
+        # Tab 4: AI Engine V8.3 Optimized (PySpark + Real HDFS)
+        self.advanced_ai_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.advanced_ai_tab, text='🤖 AI Engine V8.3')
+        
+        # Tab 5: Performance Monitor
         self.perf_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.perf_tab, text='📊 Performance Monitor')
         
-        # Tab 5: Docker Compose Editor
+        # Tab 6: Docker Compose Editor
         self.compose_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.compose_tab, text='🐳 Docker Compose')
         
-        # Tab 6: Settings
+        # Tab 7: Settings
         self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text='⚙️ Settings')
 
@@ -548,6 +564,118 @@ class App:
             status_callback=self.update_status,
             log_callback=self.append_log
         )
+        
+        # Initialize AI Engine V8.3 Optimized
+        if ADVANCED_AI_AVAILABLE:
+            try:
+                print("🔄 Initializing AI Engine V8.3 Optimized (PySpark + Real HDFS)...")
+                
+                # Create simple config manager wrapper
+                class SimpleConfigManager:
+                    def __init__(self, config):
+                        self.config = config
+                    
+                    def save_config(self):
+                        save_config(self.config)
+                
+                config_manager = SimpleConfigManager(self.config)
+                
+                self.advanced_ai = AdvancedAITab(
+                    parent=self.advanced_ai_tab,
+                    config_manager=config_manager
+                )
+                
+                # Link Spark Runner tab for integration
+                self.advanced_ai.spark_runner_tab = self.spark_runner
+                self.advanced_ai.main_notebook = self.notebook
+                
+                print("✅ AI Engine V8.3 Optimized initialized successfully!")
+                print("✅ Integrated with Spark Runner for direct execution")
+            except Exception as e:
+                print(f"⚠️ AI Engine V8.3 Optimized initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Create fallback message in tab
+                error_label = tk.Label(
+                    self.advanced_ai_tab,
+                    text=f"❌ AI Engine V8.3 Optimized failed to load:\n{str(e)}\n\n"
+                         f"Cài đặt dependencies:\n"
+                         f"pip install openai anthropic google-generativeai\n\n"
+                         f"Xem chi tiết trong console.",
+                    font=('Segoe UI', 10),
+                    fg='#CF222E',
+                    bg='#FFFFFF',
+                    justify=tk.LEFT,
+                    padx=20, pady=20
+                )
+                error_label.pack(fill=tk.BOTH, expand=True)
+        else:
+            # Show installation instruction
+            install_frame = tk.Frame(self.advanced_ai_tab, bg='#FFFFFF')
+            install_frame.pack(fill=tk.BOTH, expand=True, padx=50, pady=50)
+            
+            icon_label = tk.Label(
+                install_frame, text="🤖",
+                bg='#FFFFFF', font=('Arial', 48)
+            )
+            icon_label.pack(pady=(0, 20))
+            
+            title_label = tk.Label(
+                install_frame,
+                text="AI Engine V8.3 - System Instruction",
+                bg='#FFFFFF', fg='#24292F',
+                font=('Segoe UI', 18, 'bold')
+            )
+            title_label.pack(pady=(0, 10))
+            
+            desc_label = tk.Label(
+                install_frame,
+                text="Code Generator Machine | Temperature 0.0 | Code Only Output",
+                bg='#FFFFFF', fg='#57606A',
+                font=('Segoe UI', 11)
+            )
+            desc_label.pack(pady=(0, 30))
+            
+            features_label = tk.Label(
+                install_frame,
+                text="✨ Tính năng mới:\n\n"
+                     "• HDFS File Browser tích hợp\n"
+                     "• Quick Actions và Keyboard Shortcuts\n"
+                     "• Auto-detect data patterns\n"
+                     "• Collapsible sections tiết kiệm không gian\n"
+                     "• Smart templates và suggestions\n"
+                     "• Export code với 1 click",
+                bg='#F6F8FA', fg='#24292F',
+                font=('Segoe UI', 10),
+                justify=tk.LEFT,
+                padx=20, pady=15,
+                relief=tk.SOLID, borderwidth=1
+            )
+            features_label.pack(pady=(0, 20))
+            
+            install_label = tk.Label(
+                install_frame,
+                text="📦 Cài đặt dependencies:\n\n"
+                     "pip install openai>=1.0.0\n"
+                     "pip install anthropic>=0.7.0\n"
+                     "pip install google-generativeai>=0.3.0\n\n"
+                     "Hoặc:\n\n"
+                     "pip install -r run_spark_gui/requirements_ai.txt",
+                bg='#F6F8FA', fg='#24292F',
+                font=('Consolas', 9),
+                justify=tk.LEFT,
+                padx=20, pady=20,
+                relief=tk.SOLID, borderwidth=1
+            )
+            install_label.pack(pady=(0, 20))
+            
+            restart_label = tk.Label(
+                install_frame,
+                text="Sau khi cài đặt, khởi động lại ứng dụng",
+                bg='#FFFFFF', fg='#57606A',
+                font=('Segoe UI', 9, 'italic')
+            )
+            restart_label.pack()
         
         self.perf_monitor = PerformanceMonitor(
             parent_frame=self.perf_tab,
