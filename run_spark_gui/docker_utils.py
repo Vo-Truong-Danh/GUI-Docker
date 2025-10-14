@@ -1,46 +1,167 @@
 """
 Docker Utilities - Auto-start Docker Desktop if not running
 Supports Windows, macOS, and Linux
-Version: 5.2.0 - Enhanced Error Handling & Diagnostics
+Version: 6.3.0 - Enhanced Error Handling, Resource Management, Diagnostics & Performance Optimization
+
+Improvements in v6.3.0:
+- Fixed critical syntax errors
+- Enhanced exception handling specificity
+- Improved resource cleanup
+- Better error logging
+- Type hints optimization
+- Removed unused imports
 """
 import subprocess
 import platform
 import time
 import os
 import socket
-from pathlib import Path
 from typing import Tuple, Optional, Callable, Dict, Any
+from contextlib import contextmanager
+import threading
+import logging
 
 
-def is_docker_running():
+# Global lock for Docker operations to prevent race conditions
+_docker_lock = threading.RLock()
+
+# Cache for Docker status to reduce frequent checks
+_docker_status_cache = {'running': False, 'timestamp': 0}
+_cache_ttl = 5  # Cache TTL in seconds
+
+# Performance metrics
+_performance_metrics = {
+    'docker_checks': 0,
+    'cache_hits': 0,
+    'failed_checks': 0
+}
+
+
+def get_performance_metrics() -> Dict[str, int]:
+    """Get performance metrics for monitoring"""
+    return _performance_metrics.copy()
+
+
+def reset_performance_metrics():
+    """Reset performance metrics"""
+    global _performance_metrics
+    _performance_metrics = {
+        'docker_checks': 0,
+        'cache_hits': 0,
+        'failed_checks': 0
+    }
+
+
+@contextmanager
+def docker_operation_lock(timeout: float = 30.0):
     """
-    Check if Docker daemon is running
+    Context manager for thread-safe Docker operations
+    
+    Usage:
+        with docker_operation_lock():
+            # Your Docker operation here
+            pass
+    """
+    acquired = _docker_lock.acquire(timeout=timeout)
+    if not acquired:
+        raise TimeoutError("Could not acquire Docker operation lock")
+    try:
+        yield
+    finally:
+        _docker_lock.release()
+
+
+def is_docker_running(timeout: int = 10, retry: int = 1, use_cache: bool = True) -> bool:
+    """
+    Check if Docker daemon is running with retry capability and caching
+    
+    Args:
+        timeout: Timeout for each check in seconds
+        retry: Number of retry attempts
+        use_cache: Use cached result if available
     
     Returns:
         bool: True if Docker is running, False otherwise
     """
-    try:
-        result = subprocess.run(
-            ['docker', 'info'],
-            capture_output=True,
-            timeout=10,  # Increased timeout from 5 to 10
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        # Timeout usually means Docker is starting or hung
-        return False
-    except FileNotFoundError:
-        # Docker command not found
-        return False
-    except Exception as e:
-        # Log unexpected errors
-        print(f"⚠️ Unexpected error checking Docker status: {e}")
-        return False
+    global _docker_status_cache, _performance_metrics
+    
+    _performance_metrics['docker_checks'] += 1
+    
+    # Check cache first
+    if use_cache:
+        current_time = time.time()
+        if current_time - _docker_status_cache['timestamp'] < _cache_ttl:
+            _performance_metrics['cache_hits'] += 1
+            return _docker_status_cache['running']
+    
+    for attempt in range(retry):
+        try:
+            result = subprocess.run(
+                ['docker', 'info'],
+                capture_output=True,
+                timeout=timeout,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            if result.returncode == 0:
+                # Update cache
+                _docker_status_cache['running'] = True
+                _docker_status_cache['timestamp'] = time.time()
+                return True
+        except subprocess.TimeoutExpired:
+            # Timeout usually means Docker is starting or hung
+            if attempt < retry - 1:
+                time.sleep(2)  # Wait before retry
+                continue
+            _performance_metrics['failed_checks'] += 1
+            # Update cache with failure
+            _docker_status_cache['running'] = False
+            _docker_status_cache['timestamp'] = time.time()
+            return False
+        except FileNotFoundError:
+            # Docker command not found
+            _performance_metrics['failed_checks'] += 1
+            _docker_status_cache['running'] = False
+            _docker_status_cache['timestamp'] = time.time()
+            return False
+        except PermissionError as e:
+            # Permission denied - log and continue
+            print(f"⚠️ Permission error checking Docker status (attempt {attempt + 1}/{retry}): {e}")
+            if attempt < retry - 1:
+                time.sleep(2)
+                continue
+            _performance_metrics['failed_checks'] += 1
+            _docker_status_cache['running'] = False
+            _docker_status_cache['timestamp'] = time.time()
+            return False
+        except OSError as e:
+            # OS-level error
+            print(f"⚠️ OS error checking Docker status (attempt {attempt + 1}/{retry}): {e}")
+            if attempt < retry - 1:
+                time.sleep(2)
+                continue
+            _performance_metrics['failed_checks'] += 1
+            _docker_status_cache['running'] = False
+            _docker_status_cache['timestamp'] = time.time()
+            return False
+        except Exception as e:
+            # Log unexpected errors with more context
+            print(f"⚠️ Unexpected error checking Docker status (attempt {attempt + 1}/{retry}): {type(e).__name__}: {e}")
+            if attempt < retry - 1:
+                time.sleep(2)
+                continue
+            _performance_metrics['failed_checks'] += 1
+            _docker_status_cache['running'] = False
+            _docker_status_cache['timestamp'] = time.time()
+            return False
+    
+    # Update cache with failure
+    _docker_status_cache['running'] = False
+    _docker_status_cache['timestamp'] = time.time()
+    return False
 
 
-def find_docker_desktop_path():
+def find_docker_desktop_path() -> Optional[str]:
     """
     Find Docker Desktop executable path based on OS
     
@@ -70,11 +191,16 @@ def find_docker_desktop_path():
                 r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Docker Desktop.exe"
             )
             path, _ = winreg.QueryValueEx(key, "")
+            winreg.CloseKey(key)  # Close registry key properly
             if os.path.exists(path):
                 return path
-        except (ImportError, OSError, WindowsError) as e:
-            # Registry access failed or key not found
-            pass
+        except ImportError:
+            print("⚠️ winreg module not available (non-Windows system?)")
+        except OSError as e:
+            # Registry key not found or access denied
+            print(f"⚠️ Could not access Windows registry: {e}")
+        except Exception as e:
+            print(f"⚠️ Unexpected error accessing registry: {type(e).__name__}: {e}")
     
     elif system == 'Darwin':  # macOS
         paths = [
@@ -353,10 +479,10 @@ def check_docker_compose():
             return True, version, 'docker compose'
     except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
         pass
+    except Exception as e:
+        print(f"⚠️ Unexpected error checking docker compose (plugin): {e}")
     
     return False, None, None
-
-
 # ============================================================================
 # ENHANCED FEATURES - V5.2.0
 # ============================================================================
@@ -456,7 +582,7 @@ def get_docker_diagnostics() -> Dict[str, Any]:
 
 def check_docker_port_connectivity(host: str = 'localhost', port: int = 2375, timeout: int = 3) -> Tuple[bool, str]:
     """
-    Check if Docker daemon port is accessible
+    Check if Docker daemon port is accessible with proper resource management
     
     Args:
         host: Docker host
@@ -466,16 +592,16 @@ def check_docker_port_connectivity(host: str = 'localhost', port: int = 2375, ti
     Returns:
         tuple: (is_accessible: bool, message: str)
     """
+    # Use context manager for automatic socket cleanup
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
-        
-        if result == 0:
-            return True, f"Port {port} is accessible"
-        else:
-            return False, f"Port {port} is not accessible (error code: {result})"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            
+            if result == 0:
+                return True, f"Port {port} is accessible"
+            else:
+                return False, f"Port {port} is not accessible (error code: {result})"
     
     except socket.timeout:
         return False, f"Connection timeout after {timeout}s"

@@ -39,10 +39,10 @@ except ImportError:
 
 # Import new enhanced error handling modules
 try:
-    from error_handler import get_error_handler, safe_execute, ErrorSeverity
+    from error_handler import get_error_handler, safe_execute, ErrorSeverity, with_error_handling
     ERROR_HANDLER_AVAILABLE = True
     error_handler = get_error_handler(app_logger if LOGGING_AVAILABLE else None)
-    print("✅ Enhanced error handling enabled")
+    print("✅ Enhanced error handling enabled (v2.0)")
 except ImportError:
     print("⚠️ Warning: Enhanced error handler not available")
     ERROR_HANDLER_AVAILABLE = False
@@ -67,6 +67,27 @@ except ImportError:
     AUTO_RECOVERY_AVAILABLE = False
     auto_recovery = None
 
+# Import NEW resource and backup managers
+try:
+    from resource_manager import get_resource_tracker, temp_file, temp_directory
+    RESOURCE_MANAGER_AVAILABLE = True
+    resource_tracker = get_resource_tracker()
+    print("✅ Resource manager enabled")
+except ImportError:
+    print("⚠️ Warning: Resource manager not available")
+    RESOURCE_MANAGER_AVAILABLE = False
+    resource_tracker = None
+
+try:
+    from backup_manager import get_backup_manager
+    BACKUP_MANAGER_AVAILABLE = True
+    backup_manager = get_backup_manager(max_backups=10)
+    print("✅ Backup manager enabled")
+except ImportError:
+    print("⚠️ Warning: Backup manager not available")
+    BACKUP_MANAGER_AVAILABLE = False
+    backup_manager = None
+
 # Import V4 Clean Professional Design for all tabs
 print("🔄 Loading Spark Runner Tab V4...")
 from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
@@ -83,9 +104,9 @@ from settings_tab_v4 import SettingsTabV4
 print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
-APP_TITLE = "Spark Runner GUI V5.0"
+APP_TITLE = "Spark Runner GUI V6.0"
 CONFIG_FILE = "spark_runner_config.json"
-VERSION = "5.0.0"  # Enhanced with validation, logging, and health checks
+VERSION = "6.0.0"  # Enhanced with resource management, backup, and improved error handling
 
 INFO_TEXT = ""  # Removed to save space
 
@@ -260,8 +281,23 @@ def load_config():
 
 
 def save_config(config):
-    """Save configuration to JSON file with error handling"""
+    """Save configuration to JSON file with error handling and automatic backup"""
     try:
+        # Create backup before saving (if backup manager available)
+        if BACKUP_MANAGER_AVAILABLE and backup_manager and os.path.exists(CONFIG_FILE):
+            try:
+                success, backup_id = backup_manager.create_backup([CONFIG_FILE])
+                if success:
+                    if LOGGING_AVAILABLE and app_logger:
+                        app_logger.info(f"Configuration backed up: {backup_id}")
+                else:
+                    if LOGGING_AVAILABLE and app_logger:
+                        app_logger.warning(f"Failed to backup configuration: {backup_id}")
+            except Exception as e:
+                print(f"⚠️ Backup failed: {e}")
+                if LOGGING_AVAILABLE and app_logger:
+                    app_logger.warning(f"Configuration backup failed: {e}")
+        
         # Validate before saving
         if VALIDATION_AVAILABLE and ConfigValidator:
             is_valid, errors = ConfigValidator.validate_config(config)

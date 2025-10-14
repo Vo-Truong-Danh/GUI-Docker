@@ -1,0 +1,100 @@
+{
+  "timestamp": "2025-10-14T08:59:20.399951",
+  "files_removed": [
+    "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\enhanced_error_handler.py",
+    "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\unified_error_handler.py",
+    "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\advanced_error_recovery.py",
+    "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\error_recovery_v2.py",
+    "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\connection_pool.py"
+  ],
+  "files_renamed": [
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\connection_pool_v2.py",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\connection_pool.py"
+    }
+  ],
+  "files_moved": [
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V5.2.2.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V5.2.2.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.0.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.0.0.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.1.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.1.0.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.1_SUMMARY.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.1_SUMMARY.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.3.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.3.0.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.3.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.3.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\CHANGELOG_V6.4.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\CHANGELOG_V6.4.0.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.2.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.2.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.2_FEATURES.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.2_FEATURES.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.3.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.3.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.3.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.3.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\QUICK_START_V6.4.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\QUICK_START_V6.4.0.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\README_V6.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\README_V6.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\README_V6.2.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\README_V6.2.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\OPTIMIZATION_REPORT_V6.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\OPTIMIZATION_REPORT_V6.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\OPTIMIZATION_REPORT_V6.2.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\OPTIMIZATION_REPORT_V6.2.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\OPTIMIZATION_REPORT_V6.3.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\OPTIMIZATION_REPORT_V6.3.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\SYSTEM_OPTIMIZATION_REPORT_V6.3.1.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\SYSTEM_OPTIMIZATION_REPORT_V6.3.1.md"
+    },
+    {
+      "from": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\SYSTEM_OPTIMIZATION_REPORT_V6.4.0.md",
+      "to": "d:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\docs\\archive\\SYSTEM_OPTIMIZATION_REPORT_V6.4.0.md"
+    }
+  ],
+  "space_freed": 88601,
+  "errors": []
+}

@@ -1,14 +1,19 @@
 """
 Spark Backend Logic - Separated from UI
 Contains all Docker and Spark execution logic
-Enhanced with caching, database tracking, and auto-start Docker Desktop (v4.4.3)
+Enhanced with caching, database tracking, auto-start Docker Desktop, and resource management (v6.1)
 """
 import subprocess
 import shutil
 import os
 import sys
+import re
+import threading
+import time
 from pathlib import Path
 from datetime import datetime
+from contextlib import contextmanager
+from typing import Optional, Callable, Tuple, List
 
 # Import Docker utilities for auto-start feature
 try:
@@ -41,6 +46,130 @@ except ImportError as e:
         def decorator(func):
             return func
         return decorator
+
+# Import resource manager
+try:
+    from resource_manager import managed_resource, get_resource_tracker
+    RESOURCE_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: Resource manager not available")
+    RESOURCE_MANAGER_AVAILABLE = False
+    def managed_resource(resource, cleanup):
+        from contextlib import contextmanager
+        @contextmanager
+        def dummy():
+            yield resource
+        return dummy()
+
+# Import NEW advanced features
+try:
+    from connection_pool import get_docker_rate_limiter
+    from metrics_system import get_metrics_collector
+    from advanced_cache import get_cache
+    ADVANCED_FEATURES = True
+    rate_limiter = get_docker_rate_limiter()
+    metrics_collector = get_metrics_collector()
+    advanced_cache = get_cache()
+    print("✅ Advanced features enabled (connection pool, metrics, multi-level cache)")
+except ImportError as e:
+    print(f"⚠️ Warning: Advanced features not available: {e}")
+    ADVANCED_FEATURES = False
+    rate_limiter = None
+    metrics_collector = None
+    advanced_cache = None
+
+
+# Process tracking for cleanup with enhanced safety
+_active_processes: List[subprocess.Popen] = []
+_process_lock = threading.RLock()
+_cleanup_in_progress = False
+
+
+@contextmanager
+def track_process(process: subprocess.Popen):
+    """Track subprocess for automatic cleanup with enhanced safety"""
+    global _active_processes, _cleanup_in_progress
+    
+    # Don't add if cleanup is in progress
+    if not _cleanup_in_progress:
+        with _process_lock:
+            if process not in _active_processes:
+                _active_processes.append(process)
+    
+    try:
+        yield process
+    finally:
+        # Safe removal
+        if not _cleanup_in_progress:
+            with _process_lock:
+                try:
+                    if process in _active_processes:
+                        _active_processes.remove(process)
+                except ValueError:
+                    # Process already removed, ignore
+                    pass
+
+
+def cleanup_processes():
+    """Cleanup all tracked processes with enhanced error handling"""
+    global _active_processes, _cleanup_in_progress
+    
+    # Mark cleanup in progress to prevent race conditions
+    _cleanup_in_progress = True
+    
+    try:
+        with _process_lock:
+            processes_to_clean = list(_active_processes)  # Create snapshot
+            _active_processes.clear()  # Clear immediately to prevent additions
+        
+        cleanup_errors = []
+        
+        for process in processes_to_clean:
+            try:
+                if process.poll() is None:  # Process still running
+                    # Try graceful termination first
+                    process.terminate()
+                    
+                    # Wait with timeout for graceful shutdown
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        # Force kill if graceful termination failed
+                        print(f"⚠️ Process {process.pid} did not terminate gracefully, forcing kill")
+                        try:
+                            process.kill()
+                            process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            # Process is really stuck, log and continue
+                            cleanup_errors.append(f"Process {process.pid} is unresponsive")
+                        except (ProcessLookupError, PermissionError) as e:
+                            cleanup_errors.append(f"Process {process.pid}: {e}")
+                            
+            except (OSError, ProcessLookupError, PermissionError) as e:
+                # Process might already be gone, log and continue
+                cleanup_errors.append(f"Process {getattr(process, 'pid', 'unknown')}: {e}")
+            except Exception as e:
+                # Unexpected error, log but don't crash
+                cleanup_errors.append(f"Unexpected error: {type(e).__name__}: {e}")
+        
+        # Report cleanup errors if any
+        if cleanup_errors:
+            print(f"⚠️ Cleanup completed with {len(cleanup_errors)} error(s):")
+            for error in cleanup_errors[:5]:  # Limit output
+                print(f"   - {error}")
+            if len(cleanup_errors) > 5:
+                print(f"   ... and {len(cleanup_errors) - 5} more")
+        
+        return len(cleanup_errors) == 0
+        
+    finally:
+        # Always reset cleanup flag
+        _cleanup_in_progress = False
+
+
+# Register cleanup on exit
+import atexit
+atexit.register(cleanup_processes)
 
 
 def generate_commands(filepath: str, container: str, master: str) -> str:
@@ -77,7 +206,7 @@ def generate_commands(filepath: str, container: str, master: str) -> str:
 
 def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=False):
     """
-    Run a Docker command and return result
+    Run a Docker command and return result with proper resource management
     
     Args:
         cmd_list: List of command arguments
@@ -87,7 +216,32 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         
     Returns:
         tuple: (returncode, stdout, stderr)
+        
+    Raises:
+        ValueError: If cmd_list is invalid
     """
+    # Input validation
+    if not cmd_list or not isinstance(cmd_list, list):
+        raise ValueError("cmd_list must be a non-empty list")
+    
+    # Security: Validate docker command
+    if cmd_list[0] not in ['docker', 'docker-compose']:
+        raise ValueError(f"Unsupported command: {cmd_list[0]}")
+    
+    # Apply rate limiting if available
+    if ADVANCED_FEATURES and rate_limiter:
+        try:
+            if not rate_limiter.acquire(timeout=5.0):
+                if log_callback:
+                    log_callback('⚠️ Rate limit exceeded, please wait...', 'warning')
+                return -1, '', 'Rate limit exceeded'
+        except Exception as e:
+            # Rate limiting failed, continue anyway
+            print(f"⚠️ Rate limiter error: {e}")
+    
+    # Record metrics
+    start_time = time.time()
+    
     if log_callback:
         log_callback(f'💻 $ {" ".join(cmd_list)}', 'info')
     
@@ -105,87 +259,108 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                 universal_newlines=True
             )
             
-            stdout_lines = []
-            stderr_lines = []
-            
-            import select
-            import sys
-            
-            # For Windows, we need different approach
-            if sys.platform == 'win32':
-                import threading
+            # Track process for cleanup
+            with track_process(process):
+                stdout_lines = []
+                stderr_lines = []
                 
-                # Thread-safe locks for list operations
-                stdout_lock = threading.Lock()
-                stderr_lock = threading.Lock()
-                
-                def read_stdout():
-                    for line in process.stdout:
-                        if line:
-                            with stdout_lock:  # Thread-safe append
-                                stdout_lines.append(line)
-                            log_callback(line.rstrip(), 'normal')
-                
-                def read_stderr():
-                    for line in process.stderr:
-                        if line:
-                            with stderr_lock:  # Thread-safe append
-                                stderr_lines.append(line)
-                            log_callback(line.rstrip(), 'warning')
-                
-                stdout_thread = threading.Thread(target=read_stdout, daemon=True)
-                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-                
-                stdout_thread.start()
-                stderr_thread.start()
-                
-                # Wait for process with timeout
-                try:
-                    returncode = process.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
-                    return -1, '', 'Timeout'
-                
-                # Wait for threads to finish reading
-                stdout_thread.join(timeout=1)
-                stderr_thread.join(timeout=1)
-                
-                # Thread-safe join
-                with stdout_lock:
-                    stdout_output = ''.join(stdout_lines)
-                with stderr_lock:
-                    stderr_output = ''.join(stderr_lines)
-                
-                return returncode, stdout_output, stderr_output
-            
-            else:
-                # Unix-like systems - use select
                 import select
+                import sys
                 
-                outputs = [process.stdout, process.stderr]
-                
-                while outputs:
-                    readable, _, _ = select.select(outputs, [], [], 0.1)
+                # For Windows, we need different approach
+                if sys.platform == 'win32':
+                    import threading
                     
-                    for output in readable:
-                        line = output.readline()
-                        if line:
-                            if output == process.stdout:
-                                stdout_lines.append(line)
-                                log_callback(line.rstrip(), 'normal')
+                    # Thread-safe locks for list operations
+                    stdout_lock = threading.Lock()
+                    stderr_lock = threading.Lock()
+                    
+                    def read_stdout():
+                        try:
+                            for line in process.stdout:
+                                if line:
+                                    with stdout_lock:  # Thread-safe append
+                                        stdout_lines.append(line)
+                                    log_callback(line.rstrip(), 'normal')
+                        except Exception as e:
+                            print(f"⚠️ Error reading stdout: {e}")
+                    
+                    def read_stderr():
+                        try:
+                            for line in process.stderr:
+                                if line:
+                                    with stderr_lock:  # Thread-safe append
+                                        stderr_lines.append(line)
+                                    log_callback(line.rstrip(), 'warning')
+                        except Exception as e:
+                            print(f"⚠️ Error reading stderr: {e}")
+                    
+                    stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+                    stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+                    
+                    stdout_thread.start()
+                    stderr_thread.start()
+                    
+                    # Wait for process with timeout
+                    try:
+                        returncode = process.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+                        return -1, '', 'Timeout'
+                    finally:
+                        # Ensure threads are joined
+                        stdout_thread.join(timeout=2)
+                        stderr_thread.join(timeout=2)
+                    
+                    # Thread-safe join
+                    with stdout_lock:
+                        stdout_output = ''.join(stdout_lines)
+                    with stderr_lock:
+                        stderr_output = ''.join(stderr_lines)
+                    
+                    return returncode, stdout_output, stderr_output
+                
+                else:
+                    # Unix-like systems - use select
+                    import select
+                    
+                    outputs = [process.stdout, process.stderr]
+                    
+                    while outputs:
+                        readable, _, _ = select.select(outputs, [], [], 0.1)
+                        
+                        for output in readable:
+                            line = output.readline()
+                            if line:
+                                if output == process.stdout:
+                                    stdout_lines.append(line)
+                                    log_callback(line.rstrip(), 'normal')
+                                else:
+                                    stderr_lines.append(line)
+                                    log_callback(line.rstrip(), 'warning')
                             else:
-                                stderr_lines.append(line)
-                                log_callback(line.rstrip(), 'warning')
-                        else:
-                            outputs.remove(output)
+                                outputs.remove(output)
+                        
+                        # Check if process finished
+                        if process.poll() is not None:
+                            break
                     
-                    # Check if process finished
-                    if process.poll() is not None:
-                        break
-                
-                returncode = process.wait(timeout=timeout)
-                return returncode, ''.join(stdout_lines), ''.join(stderr_lines)
+                    returncode = process.wait(timeout=timeout)
+                    result = returncode, ''.join(stdout_lines), ''.join(stderr_lines)
+                    
+                    # Record metrics
+                    if ADVANCED_FEATURES and metrics_collector:
+                        duration = time.time() - start_time
+                        metrics_collector.record_duration('docker_command', duration, 
+                                                         command=cmd_list[1] if len(cmd_list) > 1 else 'unknown')
+                        metrics_collector.record_count('docker_command_total')
+                        if returncode == 0:
+                            metrics_collector.record_count('docker_command_success')
+                        else:
+                            metrics_collector.record_count('docker_command_error')
+                    
+                    return result
         
         else:
             # Normal execution (no streaming)
@@ -198,49 +373,135 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                 timeout=timeout
             )
             
+            # Record metrics
+            if ADVANCED_FEATURES and metrics_collector:
+                duration = time.time() - start_time
+                metrics_collector.record_duration('docker_command', duration,
+                                                 command=cmd_list[1] if len(cmd_list) > 1 else 'unknown')
+                metrics_collector.record_count('docker_command_total')
+                if result.returncode == 0:
+                    metrics_collector.record_count('docker_command_success')
+                else:
+                    metrics_collector.record_count('docker_command_error')
+            
             return result.returncode, result.stdout, result.stderr
     
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         if log_callback:
             log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
-        return -1, '', 'Timeout'
+        return -1, '', f'Command timeout after {timeout}s'
+    
+    except subprocess.SubprocessError as e:
+        # Specific subprocess errors (CalledProcessError, etc.)
+        if log_callback:
+            log_callback(f'❌ Subprocess error: {e}', 'error')
+        return -1, '', f'Subprocess failed: {e}'
+    
+    except FileNotFoundError as e:
+        # Docker executable not found
+        if log_callback:
+            log_callback('❌ Docker executable not found. Is Docker installed?', 'error')
+        return -1, '', 'Docker not found. Please install Docker.'
+    
+    except PermissionError as e:
+        # Permission denied to execute Docker
+        if log_callback:
+            log_callback(f'❌ Permission denied: {e}', 'error')
+        return -1, '', 'Permission denied. Please check Docker permissions.'
+    
+    except OSError as e:
+        # OS-level errors (file descriptors, etc.)
+        if log_callback:
+            log_callback(f'❌ OS error: {e}', 'error')
+        return -1, '', f'System error: {e}'
     
     except Exception as e:
+        # Catch any other unexpected errors
         if log_callback:
-            log_callback(f'❌ Error running command: {e}', 'error')
-        return -1, '', str(e)
+            log_callback(f'❌ Unexpected error running command: {type(e).__name__}: {e}', 'error')
+        import traceback
+        traceback.print_exc()
+        return -1, '', f'Unexpected error: {type(e).__name__}: {e}'
 
 
 def copy_file_to_container(filepath, container, log_callback=None):
     """
-    Copy a file to Docker container
+    Copy a file to Docker container with security validation
+    
+    Args:
+        filepath: Local file path to copy
+        container: Container name
+        log_callback: Function for logging messages
     
     Returns:
         bool: True if successful
+        
+    Raises:
+        ValueError: If parameters are invalid
     """
+    # Validate inputs
+    if not filepath:
+        if log_callback:
+            log_callback('❌ Filepath cannot be empty', 'error')
+        return False
+    
+    if not container:
+        if log_callback:
+            log_callback('❌ Container name cannot be empty', 'error')
+        return False
+    
+    # Validate container name (basic security check)
+    try:
+        from security_validator import SecurityValidator
+        is_valid, error = SecurityValidator.validate_container_name(container)
+        if not is_valid:
+            if log_callback:
+                log_callback(f'❌ Invalid container name: {error}', 'error')
+            return False
+    except ImportError:
+        # Security validator not available, continue with basic validation
+        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$', container):
+            if log_callback:
+                log_callback('❌ Invalid container name format', 'error')
+            return False
+    
+    # Check file existence
     if not os.path.exists(filepath):
         if log_callback:
             log_callback(f'❌ File not found: {filepath}', 'error')
+        return False
+    
+    # Check if it's actually a file
+    if not os.path.isfile(filepath):
+        if log_callback:
+            log_callback(f'❌ Path is not a file: {filepath}', 'error')
         return False
     
     if log_callback:
         log_callback(f'→ Copying {Path(filepath).name} to container...', 'info')
     
     cmd = ['docker', 'cp', filepath, f'{container}:/tmp']
-    returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=30)
     
-    if stdout:
-        log_callback(f'  {stdout.strip()}', 'normal')
-    if stderr:
-        log_callback(f'  ⚠️ {stderr.strip()}', 'warning')
-    
-    if returncode == 0:
+    try:
+        returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=30)
+        
+        if stdout and log_callback:
+            log_callback(f'  {stdout.strip()}', 'normal')
+        if stderr and log_callback:
+            log_callback(f'  ⚠️ {stderr.strip()}', 'warning')
+        
+        if returncode == 0:
+            if log_callback:
+                log_callback('✅ File copied successfully', 'success')
+            return True
+        else:
+            if log_callback:
+                log_callback(f'❌ Copy failed with code {returncode}', 'error')
+            return False
+            
+    except Exception as e:
         if log_callback:
-            log_callback('✅ File copied successfully', 'success')
-        return True
-    else:
-        if log_callback:
-            log_callback(f'❌ Copy failed with code {returncode}', 'error')
+            log_callback(f'❌ Exception during file copy: {type(e).__name__}: {e}', 'error')
         return False
 
 

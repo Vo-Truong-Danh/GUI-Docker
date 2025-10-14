@@ -1,31 +1,34 @@
-# 🚀 Spark Runner GUI V4.3.0 - Clean & Enhanced
+# 🚀 Spark Runner GUI V6.0.0 - Clean & Enhanced
 
-![Version](https://img.shields.io/badge/version-4.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-6.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![UI](https://img.shields.io/badge/UI-Clean%20Professional-purple.svg)
 ![Status](https://img.shields.io/badge/status-production-success.svg)
+![Quality](https://img.shields.io/badge/quality-enterprise-gold.svg)
 
 **Modern, clean, and professional GUI for managing Apache Spark jobs on Docker containers.**
 
 Inspired by GitHub, VS Code, and Notion - designed for developers who value simplicity and efficiency.
 
-> **🆕 New in v4.3.0:**  
-> - ✅ **Full-Screen UI** - Window maximized on startup, F11 for true fullscreen  
-> - ✅ **Auto-Save Paths** - AI Code Generator automatically saves Input/Output paths  
-> - ✅ **Settings Tab** - Configure ports, resources, network settings  
-> - ✅ **Project Cleanup** - 55% fewer files, cleaner codebase  
-> - ✅ **Enhanced Logging** - HDFS Upload with toolbar, auto-scroll, line counter
+> **🆕 NEW in v6.0.0 - Major Quality Update:**  
+> - ✅ **Enhanced Error Handling v2.0** - Context managers, decorators, thread-safe operations
+> - ✅ **Resource Manager** - Automatic temp file/directory cleanup, resource pooling  
+> - ✅ **Backup Manager** - Auto-backup configs, restore, integrity verification  
+> - ✅ **Docker Utils v6.0** - Thread-safe operations, better timeout handling
+> - ✅ **Process Management** - Auto-cleanup of subprocesses, no orphaned processes
+> - ✅ **Zero Breaking Changes** - Fully backward compatible
 
 > **🔧 Previous Updates:**  
-> - v4.2.7: HDFS path fix - Files upload to correct directory  
-> - v4.2.4: Enhanced logging & config management  
-> - v4.2.3: HDFS Upload with ThreadPoolExecutor
+> - v5.0.0: Validation, logging, health checks
+> - v4.3.0: Full-screen UI, auto-save paths, settings tab
+> - v4.2.7: HDFS path fix, enhanced logging
 
 ---
 
 ## 📑 Mục Lục
 
 - [✨ Tính Năng](#-tính-năng)
+- [🆕 What's New in v6.0](#-whats-new-in-v60)
 - [📸 Screenshots](#-screenshots)
 - [🔧 Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
 - [⚙️ Cài Đặt](#️-cài-đặt)
@@ -38,6 +41,78 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - [📝 Changelog](#-changelog)
 - [👨‍💻 Đóng Góp](#-đóng-góp)
 - [📄 License](#-license)
+
+---
+
+## 🆕 What's New in v6.0
+
+### 🛡️ Enhanced Error Handling v2.0
+
+**Context Managers for Error Scopes:**
+```python
+with error_handler.error_context("Database operation"):
+    # All errors automatically handled with context
+    db.execute()
+```
+
+**Decorator-based Error Handling:**
+```python
+@with_error_handling(context="API call", default_return={})
+def fetch_data():
+    return requests.get(url).json()
+```
+
+**Benefits:**
+- ✅ Automatic error logging with thread IDs
+- ✅ Resource cleanup on errors
+- ✅ User-friendly error messages
+- ✅ Error history tracking
+
+### 🗂️ Resource Manager
+
+**Automatic Cleanup:**
+```python
+with temp_file(suffix='.txt') as tmp:
+    tmp.write_text("data")
+    # File automatically deleted after use
+```
+
+**Features:**
+- ✅ Temporary file/directory management
+- ✅ Resource pooling for expensive resources
+- ✅ Safe file operations
+- ✅ Automatic cleanup on exit
+- ✅ Zero memory leaks
+
+### 💾 Backup Manager
+
+**Auto-Backup on Config Save:**
+- Configuration automatically backed up before each save
+- Keep last N backups (default: 10)
+- Checksum verification for integrity
+- Easy restore functionality
+
+**Manual Backup:**
+```python
+backup_manager.create_backup(['important_file.json'])
+backup_manager.restore_backup(backup_id)
+```
+
+### 🐳 Docker Improvements
+
+- ✅ Thread-safe operations with locks
+- ✅ Retry capability on checks
+- ✅ Better timeout handling
+- ✅ No more race conditions
+
+### ⚡ Process Management
+
+- ✅ All subprocesses tracked automatically
+- ✅ Cleanup on application exit
+- ✅ No orphaned processes
+- ✅ Better thread safety in output streaming
+
+**See [CHANGELOG_V6.0.0.md](CHANGELOG_V6.0.0.md) for complete details.**
 
 ---
 

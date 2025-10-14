@@ -132,7 +132,10 @@ class InputSanitizer:
             
             return str(abs_path)
         
-        except Exception:
+        except (OSError, ValueError, RuntimeError) as e:
+            # OSError: File system errors
+            # ValueError: Path manipulation errors
+            # RuntimeError: Symlink resolution errors
             return None
     
     @classmethod
@@ -165,7 +168,9 @@ class InputSanitizer:
             
             return sanitized
         
-        except Exception:
+        except (ValueError, AttributeError) as e:
+            # ValueError: Invalid URL format
+            # AttributeError: urlparse issues
             return None
     
     @classmethod

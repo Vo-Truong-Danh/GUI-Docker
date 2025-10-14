@@ -1,39 +1,21 @@
 {
-  "container": "spark-worker",
-  "master": "spark://spark-master:7077",
-  "hdfs_container": "namenode",
-  "hdfs_host": "hdfs://namenode:8020",
-  "hdfs_default_path": "/input",
-  "history": [
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/ts.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/solanxuathiencuacacnhanvat.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/tongtu.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/tongsoluongtu.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan02/demsoluong20tunhieunhat.py"
-  ],
-  "auto_extract_archives": true,
-  "delete_archive_after_extract": true,
-  "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
-  "hdfs_path": "/input",
-  "auto_extract": true,
-  "ports": {
-    "spark_master_ui": "9090",
-    "spark_worker_ui": "8081",
-    "hdfs_namenode_ui": "9870",
-    "hdfs_datanode_ui": "9864",
-    "history_server": "18080",
-    "jupyter": "8888"
-  },
-  "docker_network": "hadoop",
-  "resource_limits": {
-    "spark_worker_memory": "4g",
-    "spark_worker_cores": "2",
-    "hdfs_namenode_memory": "2g",
-    "hdfs_datanode_memory": "2g"
-  },
-  "ai_code_generator": {
-    "last_input_file": "hdfs://namenode:8020/input/harrypotter.txt",
-    "last_output_path": "hdfs://namenode:8020/output"
-  }
+    "container": "spark-worker",
+    "master": "spark://spark-master:7077",
+    "hdfs_container": "namenode",
+    "hdfs_host": "hdfs://namenode:9870",
+    "hdfs_default_path": "/user/spark/data",
+    "auto_extract_archives": true,
+    "delete_archive_after_extract": true,
+    "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
+    "history": [
+        "D:/BaiTapSinhVien/TH BigData/Tuan02/mangluoituongtacnhanvat.py",
+        "D:/BaiTapSinhVien/TH BigData/Tuan02/demtu.py"
+    ],
+    "hdfs_path": "/input",
+    "hdfs_port": "9870",
+    "auto_extract": true,
+    "ai_code_generator": {
+        "last_input_file": "hdfs://namenode:9870/input./harrypotter.txt",
+        "last_output_path": "hdfs://namenode:9870/output"
+    }
 }

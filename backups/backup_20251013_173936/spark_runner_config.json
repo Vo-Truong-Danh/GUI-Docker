@@ -13,9 +13,5 @@
   ],
   "hdfs_path": "/input",
   "hdfs_port": "9870",
-  "auto_extract": true,
-  "ai_code_generator": {
-    "last_input_file": "hdfs://namenode:9870/input./harrypotter.txt",
-    "last_output_path": "hdfs://namenode:9870/output"
-  }
+  "auto_extract": true
 }
