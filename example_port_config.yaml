@@ -1,0 +1,23 @@
+# Spark Runner GUI - Example Port Configuration
+# This is an example file for testing YAML port import functionality
+# Generated: 2024-10-14
+# Application: Spark Runner GUI V6.0
+
+ports:
+  # Apache Spark Services
+  spark_master_ui: 9090
+  spark_worker_ui: 8081
+  history_server: 18080
+  
+  # Hadoop HDFS Services
+  hdfs_namenode_ui: 9870
+  hdfs_datanode_ui: 9864
+  
+  # Development Tools
+  jupyter: 8888
+  
+  # Custom Services (Examples)
+  # Uncomment to use custom ports
+  # api_server: 5000
+  # database_ui: 8080
+  # monitoring_dashboard: 3000
