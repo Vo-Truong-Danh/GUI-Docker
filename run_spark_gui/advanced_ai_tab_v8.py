@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Advanced AI Tab V8.3 - Optimized for PySpark
+AI API - Optimized for PySpark
 Features:
 - Real HDFS integration
 - PySpark code generation (temperature 0.0)
@@ -17,7 +17,7 @@ import os
 import subprocess
 from pathlib import Path
 
-# Import AI Engine V8.3
+# Import AI API engine
 try:
     from advanced_ai_engine_v8 import (
         AdvancedAIEngine, AIConfig, AIProvider,
@@ -26,7 +26,7 @@ try:
     AI_ENGINE_AVAILABLE = True
 except ImportError:
     AI_ENGINE_AVAILABLE = False
-    print("⚠️ AI Engine V8.3 not available")
+    print("⚠️ AI API engine not available")
 
 # ============================================================================
 # HDFS UTILITIES
@@ -343,11 +343,11 @@ class HDFSBrowser(tk.Toplevel):
 
 
 # ============================================================================
-# ADVANCED AI TAB V8.3 - OPTIMIZED
+# AI API TAB - OPTIMIZED
 # ============================================================================
 
 class AdvancedAITabV8Optimized:
-    """Advanced AI Tab V8.3 - Optimized for PySpark"""
+    """AI API - Optimized for PySpark"""
     
     def __init__(self, parent, config_manager=None):
         self.parent = parent
@@ -516,7 +516,7 @@ class AdvancedAITabV8Optimized:
         # Initialize button
         tk.Button(
             parent,
-            text="🚀 Initialize Engine",
+            text="🚀 Initialize API",
             command=self._initialize_engine,
             bg='#0969DA',
             fg='white',
@@ -737,9 +737,9 @@ class AdvancedAITabV8Optimized:
             self.hdfs_file_var.set(browser.selected_file)
     
     def _initialize_engine(self):
-        """Initialize AI Engine"""
+        """Initialize AI API Engine"""
         if not AI_ENGINE_AVAILABLE:
-            messagebox.showerror("Error", "AI Engine V8.3 not available!\n\nInstall: pip install google-generativeai")
+            messagebox.showerror("Error", "AI API engine not available!\n\nInstall: pip install google-generativeai")
             return
         
         try:
@@ -769,12 +769,12 @@ class AdvancedAITabV8Optimized:
             # Get temperature from slider
             temperature = self.temp_var.get()
             
-            # V8.3 Config with adjustable temperature
+            # Config with adjustable temperature
             config = AIConfig(
                 provider=provider,
                 api_key=api_key or None,
                 temperature=temperature,  # User-adjustable
-                max_tokens=2048,  # V8.3: Limited for conciseness
+                max_tokens=2048,
                 enable_quality_check=True,
                 min_quality_score=0.7
             )
@@ -784,7 +784,7 @@ class AdvancedAITabV8Optimized:
             self.status_label.config(text="✅ Engine Ready")
             messagebox.showinfo(
                 "Success", 
-                f"AI Engine V8.3 initialized!\n\nProvider: {provider.value}\nTemperature: {temperature}\nAPI Key: {'Saved ✅' if api_key else 'Not provided'}"
+                f"AI API initialized!\n\nProvider: {provider.value}\nTemperature: {temperature}\nAPI Key: {'Saved ✅' if api_key else 'Not provided'}"
             )
             
         except Exception as e:

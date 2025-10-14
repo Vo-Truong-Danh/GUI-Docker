@@ -102,14 +102,14 @@ from docker_compose_editor_v4 import DockerComposeEditorV4
 print("🔄 Loading Settings Tab V4...")
 from settings_tab_v4 import SettingsTabV4
 
-# Import AI Engine V8.3 (PySpark + Real HDFS + Fixed Provider Mapping)
+# Import AI API (PySpark + Real HDFS + Fixed Provider Mapping)
 try:
-    print("🔄 Loading AI Engine V8.3...")
+    print("🔄 Loading AI API...")
     from advanced_ai_tab_v8 import AdvancedAITabV8 as AdvancedAITab
     ADVANCED_AI_AVAILABLE = True
-    print("✅ AI Engine V8.3 loaded successfully!")
+    print("✅ AI API loaded successfully!")
 except ImportError as e:
-    print(f"❌ Error loading AI Engine V8.3: {e}")
+    print(f"❌ Error loading AI API: {e}")
     ADVANCED_AI_AVAILABLE = False
     AdvancedAITab = None
 
@@ -400,9 +400,9 @@ class App:
         self.ai_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.ai_tab, text='🤖 AI Code Generator')
         
-        # Tab 4: AI Engine V8.3 Optimized (PySpark + Real HDFS)
+        # Tab 4: AI API (PySpark + Real HDFS)
         self.advanced_ai_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.advanced_ai_tab, text='🤖 AI Engine V8.3')
+        self.notebook.add(self.advanced_ai_tab, text='🤖 AI API')
         
         # Tab 5: Performance Monitor
         self.perf_tab = ttk.Frame(self.notebook)
@@ -564,10 +564,10 @@ class App:
             log_callback=self.append_log
         )
         
-        # Initialize AI Engine V8.3 Optimized
+        # Initialize AI API
         if ADVANCED_AI_AVAILABLE:
             try:
-                print("🔄 Initializing AI Engine V8.3 Optimized (PySpark + Real HDFS)...")
+                print("🔄 Initializing AI API (PySpark + Real HDFS)...")
                 
                 # Create simple config manager wrapper
                 class SimpleConfigManager:
@@ -588,16 +588,16 @@ class App:
                 self.advanced_ai.spark_runner_tab = self.spark_runner
                 self.advanced_ai.main_notebook = self.notebook
                 
-                print("✅ AI Engine V8.3 Optimized initialized successfully!")
+                print("✅ AI API initialized successfully!")
                 print("✅ Integrated with Spark Runner for direct execution")
             except Exception as e:
-                print(f"⚠️ AI Engine V8.3 Optimized initialization failed: {e}")
+                print(f"⚠️ AI API initialization failed: {e}")
                 import traceback
                 traceback.print_exc()
                 # Create fallback message in tab
                 error_label = tk.Label(
                     self.advanced_ai_tab,
-                    text=f"❌ AI Engine V8.3 Optimized failed to load:\n{str(e)}\n\n"
+                    text=f"❌ AI API failed to load:\n{str(e)}\n\n"
                          f"Cài đặt dependencies:\n"
                          f"pip install openai anthropic google-generativeai\n\n"
                          f"Xem chi tiết trong console.",
@@ -621,7 +621,7 @@ class App:
             
             title_label = tk.Label(
                 install_frame,
-                text="AI Engine V8.3 - System Instruction",
+                text="AI API - System Instruction",
                 bg='#FFFFFF', fg='#24292F',
                 font=('Segoe UI', 18, 'bold')
             )
