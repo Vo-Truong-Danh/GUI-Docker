@@ -374,12 +374,12 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                     # Wait for process with timeout
                     try:
                         returncode = process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
+                    except subprocess.TimeoutExpired:
                         process.kill()
-                if log_callback:
-                    log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
-                elif _logger:
-                    _logger.warning(f'Command timed out after {timeout}s')
+                        if log_callback:
+                            log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+                        elif _logger:
+                            _logger.warning(f'Command timed out after {timeout}s')
                         return -1, '', 'Timeout'
                     finally:
                         # Ensure threads are joined
