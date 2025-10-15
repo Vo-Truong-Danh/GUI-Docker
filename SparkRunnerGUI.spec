@@ -5,7 +5,7 @@ a = Analysis(
     ['run_spark_gui\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[('run_spark_gui', 'run_spark_gui'), ('docker-compose.yml', '.'), ('spark_runner_config.json', '.')],
+    datas=[('docker-compose.yml', '.'), ('spark_runner_config.json', '.')],
     hiddenimports=['yaml', 'tkinter'],
     hookspath=[],
     hooksconfig={},

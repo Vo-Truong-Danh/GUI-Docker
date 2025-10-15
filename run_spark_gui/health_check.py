@@ -15,10 +15,30 @@ import subprocess
 try:
     from subprocess_utils import run_hidden, popen_hidden
 except ImportError:
+    # Safe fallbacks to avoid recursive calls when subprocess_utils is unavailable
+    import subprocess as _subprocess
+    import sys as _sys
+
+    def _get_subprocess_params():
+        params = {}
+        if _sys.platform == 'win32':
+            startupinfo = _subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= _subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+            params['startupinfo'] = startupinfo
+            if hasattr(_subprocess, 'CREATE_NO_WINDOW'):
+                params['creationflags'] = _subprocess.CREATE_NO_WINDOW
+        return params
+
     def run_hidden(*args, **kwargs):
-        return run_hidden(*args, **kwargs)
+        params = _get_subprocess_params()
+        kwargs.update(params)
+        return _subprocess.run(*args, **kwargs)
+
     def popen_hidden(*args, **kwargs):
-        return popen_hidden(*args, **kwargs)
+        params = _get_subprocess_params()
+        kwargs.update(params)
+        return _subprocess.Popen(*args, **kwargs)
 import time
 import socket
 from typing import Dict, List, Tuple, Optional, Any

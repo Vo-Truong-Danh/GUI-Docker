@@ -15,6 +15,13 @@ from datetime import datetime
 from contextlib import contextmanager
 from typing import Optional, Callable, Tuple, List
 
+# Central logger for this module
+try:
+    from logging_config import get_logger
+    _logger = get_logger('spark_backend', log_to_file=True, log_to_console=False)
+except Exception:
+    _logger = None
+
 # Import subprocess utilities for hidden console windows
 try:
     from subprocess_utils import get_subprocess_params, run_hidden, popen_hidden
@@ -32,7 +39,7 @@ except ImportError:
 # Centralized error handler (optional)
 try:
     from error_handler import get_error_handler, ErrorSeverity
-    _err_handler = get_error_handler()
+    _err_handler = get_error_handler(_logger)
 except Exception:
     _err_handler = None
 
@@ -105,6 +112,45 @@ except ImportError as e:
 _active_processes: List[subprocess.Popen] = []
 _process_lock = threading.RLock()
 _cleanup_in_progress = False
+
+# Configurable retry policy (can be updated at runtime)
+RETRY_POLICY = {
+    'copy_max_attempts': 3,
+    'submit_max_attempts': 2,
+    'compose_max_attempts': 3,
+    'compose_status_max_attempts': 2,
+    'initial_delay': 0.5,
+    'backoff': 2.0,
+}
+
+def set_retry_policy(**kwargs):
+    for k, v in kwargs.items():
+        if k in RETRY_POLICY and isinstance(v, (int, float)):
+            RETRY_POLICY[k] = v
+    if _logger:
+        try:
+            _logger.info(f"Retry policy updated: {RETRY_POLICY}")
+        except Exception:
+            pass
+
+def _execute_with_retry(fn: Callable[[], Tuple[int, str, str]],
+                        max_attempts: int,
+                        initial_delay: float,
+                        backoff: float) -> Tuple[int, str, str]:
+    attempt = 1
+    delay = initial_delay
+    last_result = (-1, '', 'Not executed')
+    while attempt <= max_attempts:
+        rc, out, err = fn()
+        last_result = (rc, out, err)
+        if rc == 0:
+            return rc, out, err
+        # Backoff and retry
+        if attempt < max_attempts:
+            time.sleep(max(delay, 0))
+            delay *= backoff if backoff > 0 else 1.0
+        attempt += 1
+    return last_result
 
 
 @contextmanager
@@ -266,6 +312,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
     
     if log_callback:
         log_callback(f'💻 $ {" ".join(cmd_list)}', 'info')
+    elif _logger:
+        _logger.info(f'$ {" ".join(cmd_list)}')
     
     try:
         if stream_output and log_callback:
@@ -326,9 +374,12 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
                     # Wait for process with timeout
                     try:
                         returncode = process.wait(timeout=timeout)
-                    except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired:
                         process.kill()
-                        log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+                if log_callback:
+                    log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+                elif _logger:
+                    _logger.warning(f'Command timed out after {timeout}s')
                         return -1, '', 'Timeout'
                     finally:
                         # Ensure threads are joined
@@ -386,13 +437,14 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         
         else:
             # Normal execution (no streaming) - Use hidden console on Windows
+            effective_timeout = timeout if timeout is not None else 60
             result = run_hidden(
                 cmd_list,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                timeout=timeout
+                timeout=effective_timeout
             )
             
             # Record metrics
@@ -411,6 +463,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
     except subprocess.TimeoutExpired as e:
         if log_callback:
             log_callback(f'⏱️ Command timed out after {timeout}s', 'warning')
+        elif _logger:
+            _logger.warning(f'Command timed out after {timeout}s')
         if _err_handler:
             _err_handler.handle_error(e, context='run_docker_command timeout', severity=ErrorSeverity.HIGH)
         return -1, '', f'Command timeout after {timeout}s'
@@ -419,6 +473,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         # Specific subprocess errors (CalledProcessError, etc.)
         if log_callback:
             log_callback(f'❌ Subprocess error: {e}', 'error')
+        elif _logger:
+            _logger.error(f'Subprocess error: {e}')
         if _err_handler:
             _err_handler.handle_error(e, context='run_docker_command subprocess', severity=ErrorSeverity.HIGH)
         return -1, '', f'Subprocess failed: {e}'
@@ -427,6 +483,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         # Docker executable not found
         if log_callback:
             log_callback('❌ Docker executable not found. Is Docker installed?', 'error')
+        elif _logger:
+            _logger.critical('Docker executable not found. Is Docker installed?')
         if _err_handler:
             _err_handler.handle_error(e, context='run_docker_command docker not found', severity=ErrorSeverity.CRITICAL)
         return -1, '', 'Docker not found. Please install Docker.'
@@ -435,6 +493,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         # Permission denied to execute Docker
         if log_callback:
             log_callback(f'❌ Permission denied: {e}', 'error')
+        elif _logger:
+            _logger.error(f'Permission denied: {e}')
         if _err_handler:
             _err_handler.handle_error(e, context='run_docker_command permission', severity=ErrorSeverity.HIGH)
         return -1, '', 'Permission denied. Please check Docker permissions.'
@@ -443,6 +503,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         # OS-level errors (file descriptors, etc.)
         if log_callback:
             log_callback(f'❌ OS error: {e}', 'error')
+        elif _logger:
+            _logger.error(f'OS error: {e}')
         if _err_handler:
             _err_handler.handle_error(e, context='run_docker_command os error', severity=ErrorSeverity.HIGH)
         return -1, '', f'System error: {e}'
@@ -451,6 +513,8 @@ def run_docker_command(cmd_list, log_callback=None, timeout=None, stream_output=
         # Catch any other unexpected errors
         if log_callback:
             log_callback(f'❌ Unexpected error running command: {type(e).__name__}: {e}', 'error')
+        elif _logger:
+            _logger.error(f'Unexpected error running command: {type(e).__name__}: {e}')
         import traceback
         traceback.print_exc()
         if _err_handler:
@@ -517,7 +581,15 @@ def copy_file_to_container(filepath, container, log_callback=None):
     cmd = ['docker', 'cp', filepath, f'{container}:/tmp']
     
     try:
-        returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=30)
+        # Use local retry wrapper so policy can be tuned at runtime
+        def _run():
+            return run_docker_command(cmd, log_callback, timeout=30)
+        returncode, stdout, stderr = _execute_with_retry(
+            _run,
+            max_attempts=RETRY_POLICY.get('copy_max_attempts', 3),
+            initial_delay=RETRY_POLICY.get('initial_delay', 0.5),
+            backoff=RETRY_POLICY.get('backoff', 2.0),
+        )
         
         if stdout and log_callback:
             log_callback(f'  {stdout.strip()}', 'normal')
@@ -536,6 +608,8 @@ def copy_file_to_container(filepath, container, log_callback=None):
     except Exception as e:
         if log_callback:
             log_callback(f'❌ Exception during file copy: {type(e).__name__}: {e}', 'error')
+        if _err_handler:
+            _err_handler.handle_error(e, context='copy_file_to_container', severity=ErrorSeverity.HIGH)
         return False
 
 
@@ -558,13 +632,45 @@ def submit_spark_job(container, master, filename, log_callback=None, timeout=300
         log_callback('📊 Streaming realtime output...', 'info')
         log_callback('=' * 70, 'header')
     
+    # Basic input hardening
+    try:
+        from security_validator import SecurityValidator
+        is_valid, error = SecurityValidator.validate_container_name(container)
+        if not is_valid:
+            if log_callback:
+                log_callback(f'❌ Invalid container name: {error}', 'error')
+            return False
+    except Exception:
+        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$', str(container)):
+            if log_callback:
+                log_callback('❌ Invalid container name format', 'error')
+            return False
+
+    if not filename or '..' in filename or '/' in filename or '\\' in filename:
+        if log_callback:
+            log_callback('❌ Invalid filename', 'error')
+        return False
+
+    # Accept master that startswith spark://, local, yarn
+    if not (str(master).startswith('spark://') or str(master).startswith('local') or str(master).startswith('yarn')):
+        if log_callback:
+            log_callback('❌ Invalid master URL', 'error')
+        return False
+
     cmd = [
         'docker', 'exec', container,
         '/spark/bin/spark-submit', '--master', master, f'/tmp/{filename}'
     ]
     
-    # Use streaming output for realtime logs
-    returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=timeout, stream_output=True)
+    # Use streaming output for realtime logs with configurable retry
+    def _run():
+        return run_docker_command(cmd, log_callback, timeout=timeout, stream_output=True)
+    returncode, stdout, stderr = _execute_with_retry(
+        _run,
+        max_attempts=RETRY_POLICY.get('submit_max_attempts', 2),
+        initial_delay=RETRY_POLICY.get('initial_delay', 0.5),
+        backoff=RETRY_POLICY.get('backoff', 2.0),
+    )
     
     if log_callback:
         log_callback('=' * 70, 'header')
@@ -576,6 +682,16 @@ def submit_spark_job(container, master, filename, log_callback=None, timeout=300
     else:
         if log_callback:
             log_callback(f'❌ Spark job failed with code {returncode}', 'error')
+        if _err_handler:
+            try:
+                from subprocess import CalledProcessError
+                _err_handler.handle_error(
+                    CalledProcessError(returncode, cmd),
+                    context='submit_spark_job',
+                    severity=ErrorSeverity.HIGH
+                )
+            except Exception as e:
+                _err_handler.handle_error(e, context='submit_spark_job', severity=ErrorSeverity.HIGH)
         return False
 
 
@@ -624,6 +740,16 @@ def clear_hdfs_output(container, output_path, log_callback=None):
         else:
             if log_callback:
                 log_callback(f'  ❌ Failed to delete: {stderr}', 'error')
+            if _err_handler:
+                try:
+                    from subprocess import CalledProcessError
+                    _err_handler.handle_error(
+                        CalledProcessError(returncode, delete_cmd),
+                        context='clear_hdfs_output delete',
+                        severity=ErrorSeverity.MEDIUM
+                    )
+                except Exception as e:
+                    _err_handler.handle_error(e, context='clear_hdfs_output delete', severity=ErrorSeverity.MEDIUM)
             return False
     else:
         # Directory doesn't exist, that's fine
@@ -657,6 +783,15 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         log_callback('🚀 STARTING AUTOMATED SPARK JOB', 'header')
         log_callback('=' * 70, 'header')
     
+    # Optional: quick health pre-check (non-blocking)
+    try:
+        from health_check import health_checker
+        hc = health_checker.check_docker_daemon()
+        if hc.status != 'healthy' and log_callback:
+            log_callback(f'⚠️ Docker daemon status: {hc.status} - {hc.message}', 'warning')
+    except Exception:
+        pass
+
     # Check and auto-start Docker if needed
     if DOCKER_AUTO_START:
         if not is_docker_running():
@@ -800,6 +935,21 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
     
     filename = Path(filepath).name
     success = submit_spark_job(container, master, filename, log_callback, timeout=300)
+
+    # Fallback: if failed, try force kill stale Spark and retry once
+    if not success:
+        if stop_check and stop_check():
+            if log_callback:
+                log_callback('⏹️ Stopped by user before retry', 'warning')
+        else:
+            if log_callback:
+                log_callback('🔁 Attempting recovery: kill stale Spark processes and retry once...', 'warning')
+            try:
+                force_kill_spark_jobs(container, log_callback)
+            except Exception:
+                pass
+            time.sleep(2)
+            success = submit_spark_job(container, master, filename, log_callback, timeout=300)
     
     # Calculate duration
     end_time = datetime.now()
@@ -855,6 +1005,15 @@ def docker_compose_command(action, compose_file=None, log_callback=None, auto_st
     Returns:
         tuple: (returncode, stdout, stderr)
     """
+    # Validate action
+    valid_actions = {'up','down','start','stop','restart','ps','build'}
+    if action not in valid_actions:
+        if log_callback:
+            log_callback(f'❌ Invalid docker-compose action: {action}', 'error')
+        elif _logger:
+            _logger.error(f'Invalid docker-compose action: {action}')
+        return -1, '', f'Invalid action: {action}'
+
     # Check and auto-start Docker if needed
     if auto_start_docker and DOCKER_AUTO_START:
         if not is_docker_running():
@@ -879,7 +1038,22 @@ def docker_compose_command(action, compose_file=None, log_callback=None, auto_st
             if log_callback:
                 log_callback('=' * 70, 'header')
     
-    cmd = ['docker-compose']
+    # Prefer docker-compose if available, else fall back to 'docker compose'
+    compose_cmd = 'docker-compose'
+    try:
+        from docker_utils import check_docker_compose
+        available, _version, detected_cmd = check_docker_compose()
+        if available and detected_cmd:
+            compose_cmd = detected_cmd
+    except Exception:
+        # Silent fallback
+        pass
+
+    # Build command list (split plugin form into list)
+    if compose_cmd == 'docker compose':
+        cmd = ['docker', 'compose']
+    else:
+        cmd = ['docker-compose']
     
     if compose_file:
         cmd.extend(['-f', compose_file])
@@ -892,11 +1066,28 @@ def docker_compose_command(action, compose_file=None, log_callback=None, auto_st
     elif action == 'down':
         cmd.extend(['-v'])  # Remove volumes
     
-    return run_docker_command(cmd, log_callback, timeout=120)
+    def _run():
+        return run_docker_command(cmd, log_callback, timeout=120)
+    rc, out, err = _execute_with_retry(
+        _run,
+        max_attempts=RETRY_POLICY.get('compose_max_attempts', 3),
+        initial_delay=RETRY_POLICY.get('initial_delay', 0.5),
+        backoff=RETRY_POLICY.get('backoff', 2.0),
+    )
+    if rc != 0 and _err_handler:
+        try:
+            from subprocess import CalledProcessError
+            _err_handler.handle_error(
+                CalledProcessError(rc, cmd),
+                context=f'docker_compose_command {action}',
+                severity=ErrorSeverity.HIGH
+            )
+        except Exception as e:
+            _err_handler.handle_error(e, context=f'docker_compose_command {action}', severity=ErrorSeverity.HIGH)
+    return rc, out, err
 
 
 @timed('get_container_status')
-@retry_with_backoff(max_attempts=2, initial_delay=0.5)
 def get_container_status(container, log_callback=None):
     """
     Get Docker container status with caching
@@ -934,6 +1125,7 @@ def get_container_status(container, log_callback=None):
 
 
 @timed('get_docker_compose_status')
+@retry_with_backoff(max_attempts=2, initial_delay=0.5)
 def get_docker_compose_status(compose_file=None, log_callback=None):
     """
     Get status of all containers in docker-compose with caching
@@ -948,6 +1140,15 @@ def get_docker_compose_status(compose_file=None, log_callback=None):
         if cached_status:
             return cached_status
     
+    # Validate compose file if provided
+    if compose_file:
+        try:
+            p = Path(compose_file)
+            if not p.exists() or not p.is_file():
+                return []
+        except Exception:
+            return []
+
     cmd = ['docker-compose']
     if compose_file:
         cmd.extend(['-f', compose_file])

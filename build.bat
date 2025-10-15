@@ -71,12 +71,17 @@ if exist icon.ico (
     echo Building without icon...
 )
 
+REM Prefer using custom spec for lean build
+if exist build_config.spec (
+    pyinstaller build_config.spec --noconfirm
+    goto :postbuild
+)
+
 pyinstaller ^
     --name=SparkRunnerGUI ^
     --onefile ^
     --windowed ^
     %ICON_PARAM% ^
-    --add-data=run_spark_gui;run_spark_gui ^
     --add-data=docker-compose.yml;. ^
     --add-data=spark_runner_config.json;. ^
     --hidden-import=yaml ^
@@ -85,6 +90,8 @@ pyinstaller ^
     --exclude-module=numpy ^
     --noconfirm ^
     run_spark_gui\main.py
+
+:postbuild
 
 if %errorlevel% neq 0 (
     echo.

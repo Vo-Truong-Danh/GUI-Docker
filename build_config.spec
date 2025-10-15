@@ -20,9 +20,8 @@ ICON_FILE = 'icon.ico' if os.path.exists('icon.ico') else None
 GUI_PATH = os.path.abspath('run_spark_gui')
 ROOT_PATH = os.path.abspath('.')
 
-# Collect all Python files from run_spark_gui
+# Only include runtime data files, not source .py files (they are bundled by PyInstaller)
 datas = [
-    (os.path.join(GUI_PATH, '*.py'), 'run_spark_gui'),
     (os.path.join(ROOT_PATH, 'docker-compose.yml'), '.'),
     (os.path.join(ROOT_PATH, 'spark_runner_config.json'), '.'),
     (os.path.join(ROOT_PATH, 'example_port_config.yaml'), '.'),
@@ -52,8 +51,7 @@ hiddenimports = [
     'performance_monitor_v4_clean',
     'docker_compose_editor_v4',
     'settings_tab_v4',
-    'advanced_ai_tab_v8',
-    'advanced_ai_engine_v8',
+    # AI modules are optional; exclude from default hidden imports to reduce size
     'modern_theme',
     'spark_backend',
     'docker_utils',
@@ -67,18 +65,10 @@ hiddenimports = [
     
     # Third-party
     'yaml',
-    'pandas',
+    # pandas is heavy; only include if needed via hooks, otherwise skip explicit hidden import
     'requests',
-    'subprocess',
-    'threading',
-    'queue',
-    'asyncio',
-    'concurrent.futures',
     
-    # AI API (optional)
-    'google.generativeai',
-    'openai',
-    'anthropic',
+    # (AI packages omitted by default)
 ]
 
 # Analysis
@@ -100,6 +90,8 @@ a = Analysis(
         'jupyter',
         'notebook',
         'IPython',
+        'tests',
+        'examples',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

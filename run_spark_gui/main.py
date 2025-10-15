@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 import platform
+import time
 
 # Windows-specific imports for taskbar icon
 if platform.system() == 'Windows':
@@ -490,6 +491,39 @@ class App:
         # Separator
         ttk.Separator(status_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=2)
         
+        # Health badge (middle)
+        self.health_status_var = tk.StringVar(value="🟡 Health: Unknown")
+        health_label = tk.Label(
+            status_frame,
+            textvariable=self.health_status_var,
+            bg='#F0F0F0', fg='#57606A',
+            font=('Segoe UI', 8, 'bold'),
+            padx=8, pady=2
+        )
+        health_label.pack(side=tk.LEFT)
+
+        def update_health_badge():
+            try:
+                if HEALTH_CHECK_AVAILABLE and health_checker:
+                    health_checker.run_all_checks(self.config)
+                    status, message = health_checker.get_overall_health()
+                    emoji = {
+                        'healthy': '🟢',
+                        'degraded': '🟡',
+                        'unhealthy': '🔴',
+                        'unknown': '⚪'
+                    }.get(status, '⚪')
+                    # Keep badge short for status bar
+                    self.health_status_var.set(f"{emoji} Health: {status.capitalize()}")
+            except Exception:
+                pass
+            finally:
+                # Refresh every 30 seconds
+                root.after(30000, update_health_badge)
+
+        # Start health badge updates shortly after UI ready
+        root.after(2000, update_health_badge)
+
         # Docker status (middle-left)
         self.docker_status_var = tk.StringVar(value="🐳 Docker: Checking...")
         docker_status_label = tk.Label(
@@ -608,6 +642,7 @@ class App:
                 'save_config': save_config,
                 'load_config': load_config,
                 'get_version': lambda: VERSION,
+                'set_retry_policy': self.set_retry_policy,
             }
         )
         self.spark_runner.root = root # Pass root for dialogs/clipboard
@@ -932,6 +967,8 @@ class App:
         help_menu.add_command(label='View Logs', command=self.view_app_logs)
         help_menu.add_command(label='Recent Errors', command=self.view_recent_errors)
         help_menu.add_command(label='System Health', command=self.show_system_health)
+        help_menu.add_command(label='Export Health Report', command=self.export_health_report)
+        help_menu.add_command(label='Docker Diagnostics', command=self.view_docker_diagnostics)
         help_menu.add_command(label='Report Issue', command=self.report_issue)
         help_menu.add_separator()
         help_menu.add_command(label='About', command=lambda: self.spark_runner.show_about())
@@ -953,6 +990,18 @@ class App:
     def update_status(self, message):
         """Update main status bar message"""
         self.status_var.set(message)
+
+    def set_retry_policy(self, **kwargs):
+        try:
+            from spark_backend import set_retry_policy
+            set_retry_policy(**kwargs)
+            if kwargs:
+                self.update_status('✅ Retry policy updated')
+        except Exception as e:
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context='Update retry policy', severity=ErrorSeverity.MEDIUM)
+            else:
+                print(f"Failed to set retry policy: {e}")
     
     def update_docker_status(self, status_text, color='#57606A'):
         """Update Docker status in status bar"""
@@ -1018,6 +1067,13 @@ class App:
         def check():
             from spark_backend import get_container_status
             container = self.config.get('container', 'spark-worker')
+            # Sanitize container name if available
+            try:
+                from input_sanitizer import InputSanitizer
+                sanitized = InputSanitizer.sanitize_container_name(container)
+                container = sanitized or container
+            except Exception:
+                pass
             status = get_container_status(container)
             
             if status == 'running':
@@ -1083,6 +1139,13 @@ class App:
                 # Stop monitoring if active
                 if self.perf_monitor.monitoring:
                     self.perf_monitor.stop_monitoring()
+            # Ensure subprocess cleanup in backend
+            try:
+                from spark_backend import cleanup_processes
+                cleanup_processes()
+            except Exception:
+                pass
+
             print("Cleanup completed.")
         except Exception as e:
             if ERROR_HANDLER_AVAILABLE and error_handler:
@@ -1233,6 +1296,48 @@ class App:
             except Exception:
                 line = f"{name}: {getattr(res, 'status', 'unknown')}\n"
             text.insert(tk.END, line)
+
+    def export_health_report(self):
+        """Export health check results to a JSON file"""
+        try:
+            from tkinter import filedialog, messagebox
+            from health_check import health_checker
+            # Run latest checks before export
+            health_checker.run_all_checks(self.config)
+            path = filedialog.asksaveasfilename(
+                defaultextension='.json',
+                filetypes=[('JSON files', '*.json')],
+                initialfile=f'system_health_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            )
+            if not path:
+                return
+            health_checker.export_results(path)
+            messagebox.showinfo('Export Health Report', f'Đã xuất báo cáo:\n{path}')
+        except Exception as e:
+            tk.messagebox.showerror('Export Health Report', f'Thất bại: {e}')
+
+    def view_docker_diagnostics(self):
+        """Show Docker diagnostics summary"""
+        try:
+            from docker_utils import get_docker_diagnostics
+        except Exception as e:
+            tk.messagebox.showerror('Docker Diagnostics', f'Thiếu module docker_utils: {e}')
+            return
+
+        data = get_docker_diagnostics()
+
+        win = tk.Toplevel(self.root)
+        win.title('Docker Diagnostics')
+        win.geometry('900x600')
+
+        text = scrolledtext.ScrolledText(win, wrap=tk.WORD, bg='#1e1e1e', fg='#ffffff', font=('Courier New', 9))
+        text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        try:
+            import json
+            text.insert('1.0', json.dumps(data, indent=2, ensure_ascii=False))
+        except Exception:
+            text.insert('1.0', str(data))
     
     def report_issue(self):
         """Open issue reporting dialog"""
@@ -1273,13 +1378,13 @@ class App:
                 f'Container Image Viewer not available:\n{str(e)}\n\n'
                 'Make sure container_image_viewer.py is in the same folder.'
             )
-            self.log(f"❌ Failed to open image viewer: {e}", 'error')
+            self.append_log(f"❌ Failed to open image viewer: {e}", 'error')
         except Exception as e:
             tk.messagebox.showerror(
                 'Error',
                 f'Failed to open image viewer:\n{str(e)}'
             )
-            self.log(f"❌ Error: {e}", 'error')
+            self.append_log(f"❌ Error: {e}", 'error')
     
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode (F11)"""
