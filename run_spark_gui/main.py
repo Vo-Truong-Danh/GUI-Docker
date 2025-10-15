@@ -112,6 +112,8 @@ print("🔄 Loading Docker Compose Editor V4...")
 from docker_compose_editor_v4 import DockerComposeEditorV4
 print("🔄 Loading Settings Tab V4...")
 from settings_tab_v4 import SettingsTabV4
+print("🔄 Loading Python Packages Manager...")
+from python_packages_tab import PythonPackagesTab
 
 # Import AI API (PySpark + Real HDFS + Fixed Provider Mapping)
 try:
@@ -461,7 +463,11 @@ class App:
         self.compose_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.compose_tab, text='🐳 Docker Compose')
         
-        # Tab 7: Settings
+        # Tab 7: Python Packages Manager
+        self.packages_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.packages_tab, text='📦 Python Packages')
+        
+        # Tab 8: Settings
         self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text='⚙️ Settings')
 
@@ -770,6 +776,33 @@ class App:
             error_label = tk.Label(
                 self.compose_tab,
                 text=f"❌ Docker Compose Editor failed to load:\n{str(e)}\n\nPlease check console for details.",
+                font=('Segoe UI', 10),
+                fg='#CF222E',
+                bg='#FFFFFF',
+                justify=tk.LEFT,
+                padx=20, pady=20
+            )
+            error_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize Python Packages Manager
+        try:
+            print("🔄 Initializing Python Packages Manager...")
+            self.packages_manager = PythonPackagesTab(
+                parent_frame=self.packages_tab,
+                status_callback=self.update_status
+            )
+            print("✅ Python Packages Manager initialized")
+        except Exception as e:
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="Initialize Python Packages Manager", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"⚠️ Python Packages Manager initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
+            # Create fallback message in tab
+            error_label = tk.Label(
+                self.packages_tab,
+                text=f"❌ Python Packages Manager failed to load:\n{str(e)}\n\nPlease check console for details.",
                 font=('Segoe UI', 10),
                 fg='#CF222E',
                 bg='#FFFFFF',

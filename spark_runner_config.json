@@ -8,6 +8,7 @@
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/Data Tuan 2/ai_generated_code.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan02/spark_job.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan02/ai_generated_code.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan02/t2.py",

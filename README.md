@@ -410,11 +410,21 @@ backup_manager.restore_backup(backup_id)
   - HDFS DataNode UI (9864)
   - History Server (18080)
   - Jupyter (8888)
-- ✅ **Quick Open Buttons**: Mở service trong browser với 1 click �
+- ✅ **Quick Open Buttons**: Mở service trong browser với 1 click 
 - ✅ **Resource Limits**: Configure memory và cores
 - ✅ **Docker Network**: Manage network settings
 - ✅ **Test Connections**: Verify all services accessible
 - ✅ **Save/Reset**: Lưu config hoặc reset về default
+
+#### 📦 **Python Packages Manager Tab** *(NEW)* 🆕
+- ✅ **Cài đặt thư viện Python** vào Spark Docker containers
+- ✅ **Không cần terminal**: Giao diện trực quan dễ dùng
+- ✅ **Danh sách phổ biến**: 20+ thư viện ML/Data Science có sẵn
+- ✅ **Xem thư viện đã cài**: Hiển thị tên, phiên bản, đường dẫn
+- ✅ **Gỡ thư viện**: Uninstall packages không cần thiết
+- ✅ **Real-time output**: Theo dõi quá trình cài đặt
+- ✅ **Multi-container**: Hỗ trợ spark-worker, spark-master, jupyter
+- 📚 **Xem thêm**: [Python Packages Guide](PYTHON_PACKAGES_README.md)
 
 ### �🎨 **UI/UX Enhancements**
 
