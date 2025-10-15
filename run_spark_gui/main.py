@@ -913,6 +913,15 @@ class App:
         settings_menu.add_command(label='Backup Configuration', command=self.backup_config)
         settings_menu.add_command(label='Restore Configuration', command=self.restore_config)
         
+        # Tools menu (NEW)
+        tools_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label='Tools', menu=tools_menu)
+        tools_menu.add_command(label='📊 Container Image Viewer', command=self.open_image_viewer)
+        tools_menu.add_separator()
+        tools_menu.add_command(label='Open Config Folder', command=self.open_config_folder)
+        tools_menu.add_command(label='Backup Configuration', command=self.backup_config)
+        tools_menu.add_command(label='Restore Configuration', command=self.restore_config)
+        
         # Help menu
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label='Help', menu=help_menu)
@@ -1236,6 +1245,41 @@ class App:
             '4. Note your OS and Docker version\n\n'
             'Contact: GitHub Issues or support@example.com'
         )
+    
+    def open_image_viewer(self):
+        """Open Container Image Viewer window"""
+        try:
+            from container_image_viewer import ContainerImageViewer
+            
+            # Create viewer with parent window (no log callback needed)
+            viewer = ContainerImageViewer(
+                parent=self.root,
+                log_callback=lambda msg, tag: print(f"[{tag}] {msg}") if tag else print(msg)
+            )
+            
+            # Set default container from config
+            container = self.config.get('container', 'spark-worker')
+            viewer.container_var.set(container)
+            
+            # Set default path to common output location
+            viewer.path_var.set('/tmp/')
+            
+            # Print to console instead of logging
+            print("📊 Opened Container Image Viewer")
+            
+        except ImportError as e:
+            tk.messagebox.showerror(
+                'Error',
+                f'Container Image Viewer not available:\n{str(e)}\n\n'
+                'Make sure container_image_viewer.py is in the same folder.'
+            )
+            self.log(f"❌ Failed to open image viewer: {e}", 'error')
+        except Exception as e:
+            tk.messagebox.showerror(
+                'Error',
+                f'Failed to open image viewer:\n{str(e)}'
+            )
+            self.log(f"❌ Error: {e}", 'error')
     
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode (F11)"""

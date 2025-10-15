@@ -1237,7 +1237,14 @@ class HDFSUploadTabV4Clean:
                         
                         self.log("", 'info')
                         self.log(f"[{i}/{total_files}] 📤 Uploading: {filename}", 'info')
-                        self.log(f"      Size: {file_size / 1024:.1f} KB", 'info')
+                        self.log(f"      Size: {file_size / (1024**2):.2f} MB ({file_size / 1024:.1f} KB)", 'info')
+                        
+                        # Check if file is large (> 100 MB) - use chunked upload
+                        MAX_DIRECT_SIZE = 100 * 1024 * 1024  # 100 MB
+                        use_chunked = file_size > MAX_DIRECT_SIZE
+                        
+                        if use_chunked:
+                            self.log(f"      📦 Large file detected - using chunked upload", 'info')
                         
                         # Track upload start in database (if available)
                         upload_id = None
@@ -1256,36 +1263,64 @@ class HDFSUploadTabV4Clean:
                             except Exception as e:
                                 self.log(f"      ⚠️ Database tracking failed: {e}", 'warning')
                         
-                        # Step 1: Copy to container
-                        copy_cmd = ['docker', 'cp', filepath, f'{container}:/tmp/{filename}']
-                        self.log(f"      Step 1/4: Copy to container", 'info')
-                        self.log(f"      💻 $ docker cp \"{filename}\" {container}:/tmp/", 'normal')
-                        
-                        result = run_hidden(copy_cmd, check=True, capture_output=True, timeout=60, text=True)
-                        self.log(f"      ✓ Copied to container /tmp/", 'success')
-                        
-                        # Step 2: Put to HDFS with safe mode handling and retry
+                        # Target HDFS path
                         target_path = f"{hdfs_path.rstrip('/')}/{filename}"
-                        self.log(f"      Step 2/4: Upload to HDFS with safe mode check", 'info')
                         
-                        # Use enhanced upload function if available
-                        if ENHANCED_FEATURES:
-                            success_upload, upload_msg = upload_to_hdfs_with_retry(
-                                container=container,
-                                local_file=f'/tmp/{filename}',
-                                hdfs_path=target_path,
-                                max_retries=3,
-                                log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
-                            )
-                        else:
-                            # Fallback to simple upload (legacy)
-                            hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
-                                       f'/tmp/{filename}', target_path]
-                            self.log(f"      💻 $ hdfs dfs -put -f /tmp/{filename} {target_path}", 'normal')
+                        # Choose upload method based on file size
+                        if use_chunked:
+                            # Large file: use chunked upload
+                            self.log(f"      📦 Using chunked upload for large file", 'info')
                             
-                            result = run_hidden(hdfs_cmd, capture_output=True, text=True, timeout=60)
-                            success_upload = (result.returncode == 0)
-                            upload_msg = result.stderr.strip() if result.stderr else "Upload failed"
+                            try:
+                                from large_file_upload import upload_large_file_chunked
+                                
+                                success_upload, upload_msg = upload_large_file_chunked(
+                                    filepath=filepath,
+                                    container=container,
+                                    hdfs_path=target_path,
+                                    log_callback=lambda msg, tag: self.log(f"      {msg}", tag),
+                                    progress_callback=lambda uploaded, total: self.log(
+                                        f"      📊 Progress: {uploaded/(1024**2):.1f}/{total/(1024**2):.1f} MB ({uploaded/total*100:.1f}%)",
+                                        'info'
+                                    ) if uploaded % (50*1024*1024) == 0 else None  # Log every 50 MB
+                                )
+                                
+                            except ImportError:
+                                self.log(f"      ⚠️ large_file_upload module not found, using fallback", 'warning')
+                                # Fallback to normal upload
+                                use_chunked = False
+                        
+                        if not use_chunked:
+                            # Small file: direct upload (original method)
+                            # Step 1: Copy to container
+                            copy_cmd = ['docker', 'cp', filepath, f'{container}:/tmp/{filename}']
+                            self.log(f"      Step 1/4: Copy to container", 'info')
+                            self.log(f"      💻 $ docker cp \"{filename}\" {container}:/tmp/", 'normal')
+                            
+                            result = run_hidden(copy_cmd, check=True, capture_output=True, timeout=60, text=True)
+                            self.log(f"      ✓ Copied to container /tmp/", 'success')
+                            
+                            # Step 2: Put to HDFS with safe mode handling and retry
+                            self.log(f"      Step 2/4: Upload to HDFS with safe mode check", 'info')
+                            
+                            # Use enhanced upload function if available
+                            if ENHANCED_FEATURES:
+                                success_upload, upload_msg = upload_to_hdfs_with_retry(
+                                    container=container,
+                                    local_file=f'/tmp/{filename}',
+                                    hdfs_path=target_path,
+                                    max_retries=3,
+                                    log_callback=lambda msg, tag: self.log(f"      {msg}", tag)
+                                )
+                            else:
+                                # Fallback to simple upload (legacy)
+                                hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f',
+                                           f'/tmp/{filename}', target_path]
+                                self.log(f"      💻 $ hdfs dfs -put -f /tmp/{filename} {target_path}", 'normal')
+                                
+                                result = run_hidden(hdfs_cmd, capture_output=True, text=True, timeout=60)
+                                success_upload = (result.returncode == 0)
+                                upload_msg = result.stderr.strip() if result.stderr else "Upload failed"
                         
                         # Calculate duration
                         end_time = datetime.now()
