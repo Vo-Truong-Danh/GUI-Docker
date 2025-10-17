@@ -62,6 +62,7 @@ hiddenimports = [
     'metrics_system',
     'security_validator',
     'java_unzip_util',
+    'large_file_upload',
     
     # Third-party
     'yaml',

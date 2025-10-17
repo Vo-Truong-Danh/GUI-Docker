@@ -51,7 +51,7 @@ try:
 except ImportError as e:
     ENHANCED_FEATURES = False
     JAVA_UNZIP_AVAILABLE = False
-    print(f"⚠️ HDFS Upload: Enhanced features disabled ({e})")
+    print(f"HDFS Upload: Enhanced features disabled ({e})")
 
 
 # ============================================================================
@@ -265,18 +265,22 @@ class HDFSUploadTabV4Clean:
         canvas.bind('<Enter>', _bind_to_mousewheel)
         canvas.bind('<Leave>', _unbind_from_mousewheel)
         
-        # Two column layout - Left 30%, Right 70%
-        scroll_frame.grid_columnconfigure(0, weight=30, minsize=400)
-        scroll_frame.grid_columnconfigure(1, weight=70)
+        # Three column layout - Left 25%, Middle 40%, Right 35%
+        scroll_frame.grid_columnconfigure(0, weight=25, minsize=350)  # Upload controls
+        scroll_frame.grid_columnconfigure(1, weight=40, minsize=400)  # HDFS File Manager
+        scroll_frame.grid_columnconfigure(2, weight=35, minsize=350)  # Upload Log
         scroll_frame.grid_rowconfigure(0, weight=1)
         
         left_col = tk.Frame(scroll_frame, bg='#F6F8FA')
-        left_col.grid(row=0, column=0, sticky='nsew', padx=(0, 8))
+        left_col.grid(row=0, column=0, sticky='nsew', padx=(0, 6))
+        
+        middle_col = tk.Frame(scroll_frame, bg='#F6F8FA')
+        middle_col.grid(row=0, column=1, sticky='nsew', padx=(3, 3))
         
         right_col = tk.Frame(scroll_frame, bg='#F6F8FA')
-        right_col.grid(row=0, column=1, sticky='nsew', padx=(8, 0))
+        right_col.grid(row=0, column=2, sticky='nsew', padx=(6, 0))
         
-        # ===== LEFT COLUMN =====
+        # ===== LEFT COLUMN (Upload Controls) =====
         
         # Header
         header = tk.Label(
@@ -468,29 +472,144 @@ class HDFSUploadTabV4Clean:
         self.status_badge = StatusBadge(status_content, "Ready", 'neutral')
         self.status_badge.pack(anchor='w')
         
-        # ===== RIGHT COLUMN =====
+        # ===== MIDDLE COLUMN (HDFS File Manager) =====
         
-        # File List Card
-        list_card = SectionCard(right_col, title="📋 Selected Files")
-        list_card.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+        # HDFS File Manager Card
+        hdfs_card = SectionCard(middle_col, title="🗂️ HDFS File Manager")
+        hdfs_card.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
         
-        list_content = list_card.get_content()
+        hdfs_content = hdfs_card.get_content()
         
-        # Scrollable file list
-        list_canvas = tk.Canvas(list_content, bg='#FFFFFF', highlightthickness=0, height=200)
-        list_scrollbar = tk.Scrollbar(list_content, orient='vertical', command=list_canvas.yview)
+        # HDFS toolbar
+        hdfs_toolbar = tk.Frame(hdfs_content, bg='#FFFFFF', height=40)
+        hdfs_toolbar.pack(fill=tk.X, side=tk.TOP, pady=(0, 8))
+        hdfs_toolbar.pack_propagate(False)
         
-        self.file_list_frame = tk.Frame(list_canvas, bg='#FFFFFF')
-        self.file_list_frame.bind(
-            '<Configure>',
-            lambda e: list_canvas.configure(scrollregion=list_canvas.bbox('all'))
+        # Refresh button
+        refresh_btn = tk.Button(
+            hdfs_toolbar,
+            text="🔄 Refresh",
+            command=self.refresh_hdfs_files,
+            bg='#F6F8FA',
+            fg='#24292F',
+            font=('Segoe UI', 8),
+            relief='flat',
+            bd=0,
+            padx=12,
+            pady=6,
+            cursor='hand2'
+        )
+        refresh_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # Delete selected button
+        self.delete_btn = tk.Button(
+            hdfs_toolbar,
+            text="🗑️ Delete Selected",
+            command=self.delete_selected_hdfs_files,
+            bg='#D73A49',
+            fg='#FFFFFF',
+            font=('Segoe UI', 8, 'bold'),
+            relief='flat',
+            bd=0,
+            padx=12,
+            pady=6,
+            cursor='hand2',
+            state='disabled'
+        )
+        self.delete_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # HDFS path display
+        self.hdfs_path_var = tk.StringVar(value="/input")
+        path_label = tk.Label(
+            hdfs_toolbar,
+            text="Path:",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 8)
+        )
+        path_label.pack(side=tk.LEFT, padx=(20, 4))
+        
+        path_entry = tk.Entry(
+            hdfs_toolbar,
+            textvariable=self.hdfs_path_var,
+            bg='#F6F8FA',
+            fg='#24292F',
+            font=('Consolas', 8),
+            relief='flat',
+            bd=1,
+            width=25
+        )
+        path_entry.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # Go button
+        go_btn = tk.Button(
+            hdfs_toolbar,
+            text="Go",
+            command=self.browse_hdfs_path,
+            bg='#0969DA',
+            fg='#FFFFFF',
+            font=('Segoe UI', 8),
+            relief='flat',
+            bd=0,
+            padx=8,
+            pady=6,
+            cursor='hand2'
+        )
+        go_btn.pack(side=tk.LEFT)
+        
+        # HDFS file list with checkboxes
+        hdfs_list_frame = tk.Frame(hdfs_content, bg='#FFFFFF')
+        hdfs_list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Treeview for HDFS files
+        columns = ('select', 'name', 'size', 'date', 'type')
+        self.hdfs_tree = ttk.Treeview(
+            hdfs_list_frame,
+            columns=columns,
+            show='headings',
+            height=8
         )
         
-        list_canvas.create_window((0, 0), window=self.file_list_frame, anchor='nw')
-        list_canvas.configure(yscrollcommand=list_scrollbar.set)
+        # Configure columns
+        self.hdfs_tree.heading('select', text='☑')
+        self.hdfs_tree.heading('name', text='File Name')
+        self.hdfs_tree.heading('size', text='Size')
+        self.hdfs_tree.heading('date', text='Modified')
+        self.hdfs_tree.heading('type', text='Type')
         
-        list_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        list_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.hdfs_tree.column('select', width=30, minwidth=30)
+        self.hdfs_tree.column('name', width=200, minwidth=150)
+        self.hdfs_tree.column('size', width=80, minwidth=60)
+        self.hdfs_tree.column('date', width=100, minwidth=80)
+        self.hdfs_tree.column('type', width=60, minwidth=50)
+        
+        # Scrollbar for treeview
+        hdfs_scrollbar = ttk.Scrollbar(hdfs_list_frame, orient='vertical', command=self.hdfs_tree.yview)
+        self.hdfs_tree.configure(yscrollcommand=hdfs_scrollbar.set)
+        
+        self.hdfs_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        hdfs_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind selection events
+        self.hdfs_tree.bind('<Button-1>', self.on_hdfs_tree_click)
+        self.hdfs_tree.bind('<Double-1>', self.on_hdfs_tree_double_click)
+        
+        # Empty state
+        self.hdfs_empty_label = tk.Label(
+            hdfs_list_frame,
+            text="Click 'Refresh' to load HDFS files",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 9),
+            pady=20
+        )
+        self.hdfs_empty_label.pack()
+        
+        # Initialize HDFS file list
+        self.hdfs_files = []
+        self.selected_hdfs_files = set()
+        
+        # ===== RIGHT COLUMN (Upload Log) =====
         
         # Upload Log Card
         log_card = SectionCard(right_col, title="📝 Upload Log")
@@ -1540,3 +1659,225 @@ class HDFSUploadTabV4Clean:
         self.log("", 'warning')
         self.log("⏹ Stopping upload...", 'warning')
         self.status_badge.config(text="● Stopping...", bg='#FFF8C5', fg='#9A6700')
+    
+    # ===== HDFS FILE MANAGEMENT METHODS =====
+    
+    def refresh_hdfs_files(self):
+        """Refresh HDFS file list"""
+        def refresh_task():
+            try:
+                container = self.container_var.get()
+                hdfs_path = self.hdfs_path_var.get().strip()
+                
+                if not hdfs_path.startswith('/'):
+                    hdfs_path = '/' + hdfs_path
+                
+                self.log(f"🔄 Refreshing HDFS files from {hdfs_path}...", 'info')
+                
+                # List HDFS files
+                ls_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-ls', hdfs_path]
+                result = run_hidden(ls_cmd, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode != 0:
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                    self.log(f"❌ Failed to list HDFS files: {error_msg}", 'error')
+                    return
+                
+                # Parse HDFS output
+                lines = result.stdout.strip().split('\n')
+                files = []
+                
+                for line in lines:
+                    if line.strip() and not line.startswith('Found'):
+                        parts = line.split()
+                        if len(parts) >= 8:
+                            # Format: permissions, replication, owner, group, size, date, time, path
+                            permissions = parts[0]
+                            size = parts[4]
+                            date = parts[5]
+                            time = parts[6]
+                            path = ' '.join(parts[7:])
+                            
+                            # Extract filename
+                            filename = path.split('/')[-1]
+                            
+                            # Determine file type
+                            if permissions.startswith('d'):
+                                file_type = 'Directory'
+                                size = '-'
+                            else:
+                                ext = os.path.splitext(filename)[1].lower()
+                                file_type = ext[1:] if ext else 'File'
+                                
+                                # Format size
+                                try:
+                                    size_int = int(size)
+                                    if size_int > 1024**3:
+                                        size = f"{size_int / (1024**3):.1f}G"
+                                    elif size_int > 1024**2:
+                                        size = f"{size_int / (1024**2):.1f}M"
+                                    elif size_int > 1024:
+                                        size = f"{size_int / 1024:.1f}K"
+                                    else:
+                                        size = f"{size_int}B"
+                                except:
+                                    pass
+                            
+                            files.append({
+                                'path': path,
+                                'name': filename,
+                                'size': size,
+                                'date': f"{date} {time}",
+                                'type': file_type,
+                                'permissions': permissions
+                            })
+                
+                # Update UI in main thread
+                self.frame.after(0, self._update_hdfs_tree, files)
+                
+            except Exception as e:
+                self.log(f"❌ Error refreshing HDFS files: {str(e)}", 'error')
+        
+        # Run in background thread
+        threading.Thread(target=refresh_task, daemon=True).start()
+    
+    def _update_hdfs_tree(self, files):
+        """Update HDFS tree view with files"""
+        # Clear existing items
+        for item in self.hdfs_tree.get_children():
+            self.hdfs_tree.delete(item)
+        
+        self.hdfs_files = files
+        self.selected_hdfs_files.clear()
+        
+        if not files:
+            self.hdfs_empty_label.pack()
+            self.delete_btn.config(state='disabled')
+            return
+        
+        # Hide empty label
+        self.hdfs_empty_label.pack_forget()
+        
+        # Add files to tree
+        for file_info in files:
+            # Add checkbox emoji based on selection
+            checkbox = '☐'  # Unchecked
+            
+            self.hdfs_tree.insert('', 'end', values=(
+                checkbox,
+                file_info['name'],
+                file_info['size'],
+                file_info['date'],
+                file_info['type']
+            ))
+        
+        self.log(f"✅ Loaded {len(files)} HDFS file(s)", 'success')
+    
+    def on_hdfs_tree_click(self, event):
+        """Handle click on HDFS tree"""
+        item = self.hdfs_tree.identify('item', event.x, event.y)
+        column = self.hdfs_tree.identify('column', event.x, event.y)
+        
+        if item and column == '#1':  # Checkbox column
+            # Toggle selection
+            values = list(self.hdfs_tree.item(item, 'values'))
+            file_name = values[1]
+            
+            if file_name in self.selected_hdfs_files:
+                # Deselect
+                self.selected_hdfs_files.remove(file_name)
+                values[0] = '☐'
+            else:
+                # Select
+                self.selected_hdfs_files.add(file_name)
+                values[0] = '☑'
+            
+            self.hdfs_tree.item(item, values=values)
+            
+            # Update delete button state
+            if self.selected_hdfs_files:
+                self.delete_btn.config(state='normal')
+            else:
+                self.delete_btn.config(state='disabled')
+    
+    def on_hdfs_tree_double_click(self, event):
+        """Handle double-click on HDFS tree (navigate to directory)"""
+        item = self.hdfs_tree.identify('item', event.x, event.y)
+        if item:
+            values = self.hdfs_tree.item(item, 'values')
+            file_name = values[1]
+            file_type = values[4]
+            
+            if file_type == 'Directory':
+                # Navigate to directory
+                current_path = self.hdfs_path_var.get().strip()
+                if not current_path.endswith('/'):
+                    current_path += '/'
+                new_path = current_path + file_name
+                self.hdfs_path_var.set(new_path)
+                self.refresh_hdfs_files()
+    
+    def browse_hdfs_path(self):
+        """Browse to specified HDFS path"""
+        self.refresh_hdfs_files()
+    
+    def delete_selected_hdfs_files(self):
+        """Delete selected HDFS files"""
+        if not self.selected_hdfs_files:
+            self.log("⚠️ No files selected for deletion", 'warning')
+            return
+        
+        # Confirm deletion
+        file_list = '\n'.join(f"  • {name}" for name in self.selected_hdfs_files)
+        if not messagebox.askyesno(
+            "Confirm Deletion",
+            f"Are you sure you want to delete these {len(self.selected_hdfs_files)} file(s)?\n\n{file_list}\n\nThis action cannot be undone!",
+            icon='warning'
+        ):
+            return
+        
+        def delete_task():
+            try:
+                container = self.container_var.get()
+                hdfs_path = self.hdfs_path_var.get().strip()
+                if not hdfs_path.startswith('/'):
+                    hdfs_path = '/' + hdfs_path
+                
+                deleted_count = 0
+                failed_count = 0
+                
+                for file_name in list(self.selected_hdfs_files):
+                    file_path = f"{hdfs_path.rstrip('/')}/{file_name}"
+                    
+                    # Delete file
+                    delete_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-rm', '-r', file_path]
+                    result = run_hidden(delete_cmd, capture_output=True, text=True, timeout=30)
+                    
+                    if result.returncode == 0:
+                        deleted_count += 1
+                        self.log(f"✅ Deleted: {file_name}", 'success')
+                    else:
+                        failed_count += 1
+                        error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                        self.log(f"❌ Failed to delete {file_name}: {error_msg}", 'error')
+                
+                # Update UI
+                self.frame.after(0, self._on_deletion_complete, deleted_count, failed_count)
+                
+            except Exception as e:
+                self.log(f"❌ Error during deletion: {str(e)}", 'error')
+        
+        # Run in background thread
+        threading.Thread(target=delete_task, daemon=True).start()
+    
+    def _on_deletion_complete(self, deleted_count, failed_count):
+        """Handle deletion completion"""
+        if deleted_count > 0:
+            self.log(f"🎉 Deletion complete: {deleted_count} file(s) deleted", 'success')
+            if failed_count > 0:
+                self.log(f"⚠️ {failed_count} file(s) failed to delete", 'warning')
+            
+            # Refresh file list
+            self.refresh_hdfs_files()
+        else:
+            self.log(f"❌ No files were deleted", 'error')
