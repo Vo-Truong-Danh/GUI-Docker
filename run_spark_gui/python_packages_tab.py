@@ -52,14 +52,23 @@ class PythonPackagesTab:
         self.setup_ui()
         
     def setup_ui(self):
-        """Tạo giao diện tab"""
+        """Tạo giao diện tab - Layout 2 cột"""
         
-        # Main container
+        # Main container with horizontal split
         main_container = ttk.Frame(self.parent)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # ========== TOP SECTION: Installation Form ==========
-        form_frame = ttk.LabelFrame(main_container, text="📦 Cài đặt thư viện Python", padding=15)
+        # Configure grid weights for responsive layout
+        main_container.grid_rowconfigure(0, weight=1)
+        main_container.grid_columnconfigure(0, weight=0, minsize=550)  # Left: fixed width
+        main_container.grid_columnconfigure(1, weight=1)  # Right: expandable
+        
+        # ========== LEFT COLUMN: Installation Form + Package List ==========
+        left_column = ttk.Frame(main_container)
+        left_column.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
+        
+        # ========== TOP LEFT: Installation Form ==========
+        form_frame = ttk.LabelFrame(left_column, text="📦 Cài đặt thư viện Python", padding=15)
         form_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Row 1: Container selection
@@ -170,7 +179,6 @@ class PythonPackagesTab:
             progress_frame,
             variable=self.progress_var,
             maximum=100,
-            length=400,
             mode='determinate'
         )
         self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
@@ -178,24 +186,8 @@ class PythonPackagesTab:
         self.progress_label = ttk.Label(progress_frame, text="0%", width=8)
         self.progress_label.pack(side=tk.LEFT, padx=5)
         
-        # ========== MIDDLE SECTION: Output Console ==========
-        output_frame = ttk.LabelFrame(main_container, text="📝 Kết quả cài đặt", padding=10)
-        output_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        # Output text with scrollbar
-        self.output_text = scrolledtext.ScrolledText(
-            output_frame,
-            height=15,
-            font=('Consolas', 9),
-            bg='#1E1E1E',
-            fg='#D4D4D4',
-            insertbackground='white',
-            wrap=tk.WORD
-        )
-        self.output_text.pack(fill=tk.BOTH, expand=True)
-        
-        # ========== BOTTOM SECTION: Installed Packages List ==========
-        packages_frame = ttk.LabelFrame(main_container, text="📚 Thư viện đã cài trong container", padding=10)
+        # ========== BOTTOM LEFT: Installed Packages List ==========
+        packages_frame = ttk.LabelFrame(left_column, text="📚 Thư viện đã cài", padding=10)
         packages_frame.pack(fill=tk.BOTH, expand=True)
         
         # Treeview for packages
@@ -211,7 +203,7 @@ class PythonPackagesTab:
             columns=('package', 'version', 'location'),
             show='headings',
             yscrollcommand=tree_scroll.set,
-            height=8
+            height=12
         )
         tree_scroll.config(command=self.packages_tree.yview)
         
@@ -220,11 +212,29 @@ class PythonPackagesTab:
         self.packages_tree.heading('version', text='Phiên bản')
         self.packages_tree.heading('location', text='Đường dẫn')
         
-        self.packages_tree.column('package', width=200)
-        self.packages_tree.column('version', width=100)
-        self.packages_tree.column('location', width=400)
+        self.packages_tree.column('package', width=150)
+        self.packages_tree.column('version', width=80)
+        self.packages_tree.column('location', width=250)
         
         self.packages_tree.pack(fill=tk.BOTH, expand=True)
+        
+        # ========== RIGHT COLUMN: Output Console ==========
+        right_column = ttk.Frame(main_container)
+        right_column.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
+        
+        output_frame = ttk.LabelFrame(right_column, text="📝 Kết quả cài đặt", padding=10)
+        output_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Output text with scrollbar - Full height cho right column
+        self.output_text = scrolledtext.ScrolledText(
+            output_frame,
+            font=('Consolas', 9),
+            bg='#1E1E1E',
+            fg='#D4D4D4',
+            insertbackground='white',
+            wrap=tk.WORD
+        )
+        self.output_text.pack(fill=tk.BOTH, expand=True)
         
         # Log initial message
         self.log_output("✅ Tab quản lý thư viện Python đã sẵn sàng\n")
@@ -333,10 +343,9 @@ class PythonPackagesTab:
                                             self.container_var.set(containers[0])
                                         return
     
-    def check_and_install_build_tools(self, container):
-        """Kiểm tra build tools - KHÔNG block main thread"""
+    def detect_os_type(self, container):
+        """Phát hiện loại OS trong container"""
         try:
-            # Kiểm tra xem có phải Alpine Linux không
             result = subprocess.run(
                 ['docker', 'exec', container, 'cat', '/etc/os-release'],
                 capture_output=True,
@@ -345,69 +354,125 @@ class PythonPackagesTab:
                 timeout=10
             )
             
-            if 'alpine' not in result.stdout.lower():
-                return True  # Không phải Alpine
-            
-            # Kiểm tra make
-            check_make = subprocess.run(
-                ['docker', 'exec', container, 'which', 'make'],
-                capture_output=True,
-                timeout=5
-            )
-            
-            if check_make.returncode != 0:
-                # Thiếu build tools - return False để xử lý sau
-                return False
-            
-            return True  # make đã có
-            
-        except Exception as e:
-            self.log_output(f"⚠️ Không thể kiểm tra build tools: {str(e)}\n")
-            return True  # Continue anyway
-    
-    def install_build_tools_background(self, container, callback):
-        """Cài build tools trong background thread"""
-        def run_install():
-            try:
-                self.parent.after(0, lambda: self.log_output("\n" + "="*80 + "\n"))
-                self.parent.after(0, lambda: self.log_output("🔧 Đang cài đặt build tools (build-base, freetype-dev, libpng-dev)...\n"))
-                self.parent.after(0, lambda: self.log_output("⏰ Quá trình này mất 1-2 phút, vui lòng đợi...\n"))
-                self.parent.after(0, lambda: self.log_output("="*80 + "\n"))
+            os_info = result.stdout.lower()
+            if 'alpine' in os_info:
+                return 'alpine'
+            elif 'debian' in os_info or 'ubuntu' in os_info:
+                return 'debian'
+            elif 'centos' in os_info or 'rhel' in os_info or 'fedora' in os_info:
+                return 'redhat'
+            else:
+                return 'unknown'
                 
-                # Cài minimal build tools (không cài openblas/lapack vì conflict với nhau)
+        except Exception:
+            return 'unknown'
+    
+    def install_dependencies_sync(self, container, os_type):
+        """Cài đặt ĐỒNG BỘ build tools + dependencies (chạy trong thread)"""
+        try:
+            self.log_output("\n" + "="*80 + "\n")
+            self.log_output("🔧 Đang cài đặt build tools + dependencies...\n")
+            self.log_output("⏰ Quá trình này mất 1-3 phút, vui lòng đợi...\n")
+            self.log_output("="*80 + "\n")
+            
+            if os_type == 'alpine':
+                # Alpine Linux - sử dụng apk
                 install_cmd = [
                     'docker', 'exec', container, 'apk', 'add', '--no-cache',
-                    'build-base', 'freetype-dev', 'libpng-dev'
+                    'build-base',           # gcc, g++, make
+                    'python3-dev',          # Python.h headers
+                    'freetype-dev',         # FreeType for matplotlib
+                    'libpng-dev',           # PNG support
+                    'libjpeg-turbo-dev',    # JPEG support for pillow ⭐
+                    'zlib-dev',             # Zlib compression
+                    'openblas-dev',         # BLAS for numpy
+                    'gfortran',             # Fortran for scipy
+                    'libffi-dev',           # FFI for cryptography
+                    'openssl-dev',          # OpenSSL for cryptography
+                    'libxml2-dev',          # XML for lxml
+                    'libxslt-dev',          # XSLT for lxml
+                    'postgresql-dev',       # PostgreSQL for psycopg2
+                    'tiff-dev',             # TIFF for pillow
+                    'lcms2-dev',            # Color management for pillow
+                    'libwebp-dev',          # WebP for pillow
+                    'tcl-dev',              # Tcl for pillow
+                    'tk-dev'                # Tk for pillow
                 ]
+            elif os_type == 'debian':
+                # Debian/Ubuntu - sử dụng apt-get
+                install_cmd = [
+                    'docker', 'exec', container, 'sh', '-c',
+                    'apt-get update && apt-get install -y ' +
+                    'build-essential python3-dev ' +
+                    'libfreetype6-dev libpng-dev libjpeg-dev ' +
+                    'zlib1g-dev libopenblas-dev gfortran ' +
+                    'libffi-dev libssl-dev libxml2-dev libxslt1-dev ' +
+                    'libpq-dev libtiff-dev liblcms2-dev libwebp-dev ' +
+                    'tcl-dev tk-dev'
+                ]
+            elif os_type == 'redhat':
+                # RedHat/CentOS - sử dụng yum
+                install_cmd = [
+                    'docker', 'exec', container, 'yum', 'install', '-y',
+                    'gcc', 'gcc-c++', 'make', 'python3-devel',
+                    'freetype-devel', 'libpng-devel', 'libjpeg-turbo-devel',
+                    'zlib-devel', 'openblas-devel', 'gcc-gfortran',
+                    'libffi-devel', 'openssl-devel', 'libxml2-devel', 'libxslt-devel',
+                    'postgresql-devel', 'libtiff-devel', 'lcms2-devel', 'libwebp-devel'
+                ]
+            else:
+                self.log_output("⚠️ Không nhận dạng được OS, thử cài bằng Alpine commands...\n")
+                install_cmd = [
+                    'docker', 'exec', container, 'apk', 'add', '--no-cache',
+                    'build-base', 'python3-dev', 'freetype-dev', 'libpng-dev',
+                    'libjpeg-turbo-dev', 'zlib-dev', 'openblas-dev', 'gfortran'
+                ]
+            
+            result = subprocess.run(
+                install_cmd,
+                capture_output=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=300
+            )
+            
+            self.log_output(result.stdout)
+            if result.stderr:
+                self.log_output(result.stderr)
+            
+            if result.returncode == 0:
+                self.log_output("\n✅ Dependencies đã được cài đặt thành công!\n")
+                self.log_output("📦 Sẵn sàng cài matplotlib, pillow, numpy, scipy, etc.\n\n")
+                return True
+            else:
+                self.log_output("\n⚠️ Không thể cài đặt một số dependencies, nhưng sẽ thử tiếp...\n")
+                return False  # Vẫn thử cài package
                 
-                result = subprocess.run(
-                    install_cmd,
-                    capture_output=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    timeout=300
-                )
-                
-                self.parent.after(0, lambda: self.log_output(result.stdout))
-                if result.stderr:
-                    self.parent.after(0, lambda: self.log_output(result.stderr))
-                
-                if result.returncode == 0:
-                    self.parent.after(0, lambda: self.log_output("\n✅ Build tools đã được cài đặt thành công!\n"))
-                    self.parent.after(0, lambda: self.log_output("📦 Bây giờ bạn có thể cài matplotlib, numpy, scipy, v.v.\n\n"))
-                    self.parent.after(0, lambda: callback(True))
-                else:
-                    self.parent.after(0, lambda: self.log_output("\n❌ Không thể cài đặt build tools!\n"))
-                    self.parent.after(0, lambda: callback(False))
-                    
-            except Exception as e:
-                self.parent.after(0, lambda: self.log_output(f"\n❌ Lỗi: {str(e)}\n"))
-                self.parent.after(0, lambda: callback(False))
+        except Exception as e:
+            self.log_output(f"\n⚠️ Lỗi khi cài dependencies: {str(e)}\n")
+            return False
+    
+    def parse_missing_dependency(self, error_output):
+        """Parse lỗi để tìm dependency bị thiếu"""
+        import re
         
-        threading.Thread(target=run_install, daemon=True).start()
+        # Pattern: "The headers or library files could not be found for jpeg"
+        match = re.search(r'could not be found for (\w+)', error_output)
+        if match:
+            return match.group(1)
+        
+        # Pattern: "fatal error: Python.h: No such file or directory"
+        if 'Python.h' in error_output:
+            return 'python-dev'
+        
+        # Pattern: "error: command 'gcc' failed"
+        if "command 'gcc' failed" in error_output or 'gcc: not found' in error_output:
+            return 'gcc'
+        
+        return None
     
     def install_package(self):
-        """Cài đặt thư viện"""
+        """Cài đặt thư viện - với auto dependency installation"""
         container = self.container_var.get()
         package = self.package_var.get().strip()
         
@@ -423,44 +488,37 @@ class PythonPackagesTab:
             messagebox.showwarning("Cảnh báo", "Đang cài đặt thư viện khác, vui lòng đợi!")
             return
         
-        # Kiểm tra build tools cho các thư viện cần compile
-        compile_packages = ['matplotlib', 'numpy', 'scipy', 'pandas', 'pillow', 'lxml', 'cryptography', 'psycopg2']
-        if any(pkg in package.lower() for pkg in compile_packages):
-            self.log_output(f"\n📋 Thư viện '{package}' có thể cần build tools để compile...\n")
-            if not self.check_and_install_build_tools(container):
-                self.log_output("\n⚠️ Cài đặt bị hủy do thiếu build tools.\n")
-                self.log_output("💡 Tip: Bạn có thể thử:\n")
-                self.log_output("   1. Cài các thư viện pure Python: requests, beautifulsoup4, pyyaml\n")
-                self.log_output("   2. Hoặc cài lại build tools bằng lệnh:\n")
-                self.log_output("      docker exec " + container + " apk add build-base freetype-dev libpng-dev\n\n")
-                return
+        # Phát hiện OS và cài dependencies nếu cần
+        compile_packages = ['matplotlib', 'numpy', 'scipy', 'pandas', 'pillow', 'lxml', 
+                           'cryptography', 'psycopg2', 'opencv-python', 'scikit-learn']
+        needs_compile = any(pkg in package.lower() for pkg in compile_packages)
         
         # Build command
-        cmd = ['docker', 'exec', container, 'python3', '-m', 'pip', 'install']
-        
-        if self.no_cache_var.get():
-            cmd.append('--no-cache-dir')
-        
-        if self.upgrade_var.get():
-            cmd.append('--upgrade')
-        
-        # Tăng timeout để tránh network timeout (default 15s → 300s)
-        cmd.extend(['--timeout', '300'])
-        
-        cmd.append(package)
+        def build_pip_command():
+            cmd = ['docker', 'exec', container, 'python3', '-m', 'pip', 'install']
+            if self.no_cache_var.get():
+                cmd.append('--no-cache-dir')
+            if self.upgrade_var.get():
+                cmd.append('--upgrade')
+            cmd.extend(['--timeout', '300'])
+            cmd.append(package)
+            return cmd
         
         # Log command
         self.log_output(f"\n{'='*80}\n")
         self.log_output(f"🚀 Đang cài đặt: {package}\n")
         self.log_output(f"📦 Container: {container}\n")
-        self.log_output(f"💻 Lệnh: {' '.join(cmd)}\n")
         self.log_output(f"⏰ Bắt đầu lúc: {datetime.now().strftime('%H:%M:%S')}\n")
         self.log_output(f"{'='*80}\n\n")
+        
+        if needs_compile:
+            self.log_output(f"📋 Thư viện '{package}' cần compile từ source code\n")
+            self.log_output(f"🔧 Sẽ tự động cài đặt build tools nếu cần...\n\n")
         
         # Special warning for packages that take long to build
         long_build_packages = ['numpy', 'scipy', 'pandas', 'torch', 'tensorflow', 'opencv-python']
         if any(pkg in package.lower() for pkg in long_build_packages):
-            self.log_output(f"⚠️ LƯU Ý: {package} có thể mất 5-15 phút để build từ source!\n")
+            self.log_output(f"⚠️ LƯU Ý: {package} có thể mất 5-15 phút để build!\n")
             self.log_output(f"💡 App vẫn đang chạy, vui lòng đợi... Theo dõi log bên dưới.\n\n")
         
         self.update_status(f"⏳ Đang cài đặt {package}... (có thể mất vài phút)")
@@ -468,16 +526,32 @@ class PythonPackagesTab:
         self.install_btn.config(state='disabled', text='⏳ Đang cài...')
         self.list_btn.config(state='disabled')
         self.uninstall_btn.config(state='disabled')
-        self.reset_progress()  # Reset progress bar
+        self.reset_progress()
         
-        # Run in thread
+        # Run in thread - THÔNG MINH với auto-retry
         def run_install():
             start_time = time.time()
             last_update = start_time
             line_count = 0
             current_stage = "Đang chuẩn bị..."
+            deps_installed = False
             
             try:
+                # BƯỚC 1: Cài dependencies trước nếu cần compile
+                if needs_compile:
+                    os_type = self.detect_os_type(container)
+                    self.parent.after(0, lambda: self.log_output(f"🖥️ Phát hiện OS: {os_type}\n"))
+                    
+                    if os_type != 'unknown':
+                        deps_installed = self.install_dependencies_sync(container, os_type)
+                    else:
+                        self.parent.after(0, lambda: self.log_output(
+                            "⚠️ Không nhận dạng được OS, sẽ thử cài trực tiếp...\n\n"))
+                
+                # BƯỚC 2: Thử cài package (lần đầu)
+                cmd = build_pip_command()
+                self.parent.after(0, lambda: self.log_output(f"💻 Lệnh: {' '.join(cmd)}\n\n"))
+                
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -486,12 +560,14 @@ class PythonPackagesTab:
                     bufsize=1,
                     universal_newlines=True,
                     encoding='utf-8',
-                    errors='replace'  # Replace invalid chars with ?
+                    errors='replace'
                 )
                 
-                # Read output line by line with progress tracking
+                # Collect all output to parse errors if needed
+                all_output = []
                 for line in iter(process.stdout.readline, ''):
                     if line:
+                        all_output.append(line)
                         self.parent.after(0, lambda l=line: self.log_output(l))
                         line_count += 1
                         
@@ -501,113 +577,62 @@ class PythonPackagesTab:
                             self.parent.after(0, lambda p=progress, s=current_stage: 
                                 self.update_progress(p, f"{s} {int(p)}%"))
                         
-                        # Detect important stages and update progress estimates
+                        # Detect important stages
                         line_lower = line.lower()
                         
                         if 'collecting' in line_lower:
                             current_stage = "📥 Đang tải"
                             self.parent.after(0, lambda: self.update_progress(5, "📥 Đang tải thông tin..."))
-                        
                         elif 'downloading' in line_lower:
                             current_stage = "⬇️ Đang download"
-                            # Progress will be parsed from download line
-                        
                         elif 'installing build dependencies' in line_lower and 'started' in line_lower:
                             current_stage = "🔧 Dependencies"
                             self.parent.after(0, lambda: self.update_progress(30, "🔧 Cài dependencies..."))
-                        
                         elif 'getting requirements' in line_lower and 'started' in line_lower:
                             current_stage = "📋 Requirements"
                             self.parent.after(0, lambda: self.update_progress(40, "📋 Lấy requirements..."))
-                        
                         elif 'preparing metadata' in line_lower and 'started' in line_lower:
                             current_stage = "📝 Metadata"
                             self.parent.after(0, lambda: self.update_progress(50, "📝 Chuẩn bị metadata..."))
-                        
                         elif 'building wheel' in line_lower and 'started' in line_lower:
                             current_stage = "⚙️ Build"
                             self.parent.after(0, lambda: self.log_output(
-                                f"⚙️ ĐANG BUILD: Quá trình này có thể mất 5-15 phút, vui lòng đợi...\n"))
+                                f"⚙️ ĐANG BUILD: Quá trình này có thể mất 5-15 phút...\n"))
                             self.parent.after(0, lambda: self.update_progress(60, "⚙️ Đang build wheel..."))
-                            self.parent.after(0, lambda: self.update_status(
-                                f"⚙️ Đang build {package}... (có thể mất lâu)"))
-                        
                         elif 'building wheel' in line_lower and 'still running' in line_lower:
                             elapsed = int(time.time() - start_time)
-                            mins = elapsed // 60
-                            secs = elapsed % 60
-                            
-                            # Estimate progress during long build (60-90%)
+                            mins, secs = divmod(elapsed, 60)
                             build_progress = min(60 + (mins * 5), 90)
-                            
-                            # Cập nhật progress bar
-                            if mins > 0:
-                                self.parent.after(0, lambda p=build_progress, m=mins, s=secs: 
-                                    self.update_progress(p, f"⚙️ Build... {m}m {s}s"))
-                            else:
-                                self.parent.after(0, lambda p=build_progress, s=secs: 
-                                    self.update_progress(p, f"⚙️ Build... {s}s"))
-                            
-                            # Log chi tiết theo thời gian
-                            if mins > 0:
-                                self.parent.after(0, lambda m=mins, s=secs: self.log_output(
-                                    f"⏰ Vẫn đang build... ({m} phút {s} giây đã trôi qua - BÌNH THƯỜNG, vui lòng đợi)\n"))
-                            else:
-                                # Khi < 1 phút, báo theo giây (mỗi 5-10s sẽ có log mới)
-                                self.parent.after(0, lambda s=secs: self.log_output(
-                                    f"⏰ Vẫn đang build... ({s} giây đã trôi qua)\n"))
-
-                        
+                            time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                            self.parent.after(0, lambda p=build_progress, t=time_str: 
+                                self.update_progress(p, f"⚙️ Build... {t}"))
                         elif 'building wheel' in line_lower and 'finished' in line_lower:
                             self.parent.after(0, lambda: self.update_progress(92, "✅ Build xong!"))
-                        
                         elif 'installing collected packages' in line_lower:
                             current_stage = "📦 Cài đặt"
                             self.parent.after(0, lambda: self.update_progress(95, "📦 Đang cài đặt..."))
-                            self.parent.after(0, lambda: self.log_output(
-                                f"📦 Đang cài đặt các gói... (sắp xong)\n"))
-                        
                         elif 'successfully installed' in line_lower:
                             self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
                         
-                        # ⏰ CẢI THIỆN: Update elapsed time every 5-10 seconds
+                        # Update elapsed time periodically
                         current_time = time.time()
-                        if current_time - last_update >= 5:  # Mỗi 5 giây
+                        if current_time - last_update >= 5:
                             elapsed = int(current_time - start_time)
                             mins, secs = divmod(elapsed, 60)
                             time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                            
-                            # Hiển thị thời gian realtime
                             self.parent.after(0, lambda t=time_str, c=current_stage: 
-                                self.update_status(f"⏳ {c} {package}... ({t} - {line_count} dòng)"))
-                            
+                                self.update_status(f"⏳ {c} {package}... ({t})"))
                             last_update = current_time
-                            
-                            # Thêm log message mỗi 10 giây để user biết vẫn đang chạy
-                            if elapsed % 10 == 0 and elapsed > 0:
-                                self.parent.after(0, lambda t=time_str: 
-                                    self.log_output(f"⏰ Vẫn đang chạy... ({t} đã trôi qua)\n"))
-                            
-                            # Cảnh báo nếu quá lâu (> 5 phút)
-                            if elapsed == 300:  # 5 phút
-                                self.parent.after(0, lambda: 
-                                    self.log_output(
-                                        f"⚠️ Đã chạy 5 phút - Đây là bình thường khi build từ source.\n"
-                                        f"💡 Vui lòng kiên nhẫn, quá trình build có thể mất 10-15 phút.\n\n"))
-                            
-                            if elapsed == 600:  # 10 phút
-                                self.parent.after(0, lambda: 
-                                    self.log_output(
-                                        f"⏰ Đã chạy 10 phút - Vẫn đang build...\n"
-                                        f"💡 Gần xong rồi, còn khoảng 2-5 phút nữa.\n\n"))
                 
                 process.wait()
+                full_output = ''.join(all_output)
                 
                 # Calculate total time
                 total_time = int(time.time() - start_time)
                 mins, secs = divmod(total_time, 60)
                 time_str = f"{mins} phút {secs} giây" if mins > 0 else f"{secs} giây"
                 
+                # BƯỚC 3: Xử lý kết quả
                 if process.returncode == 0:
                     self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
                     self.parent.after(0, lambda: self.log_output(f"\n✅ Cài đặt thành công: {package}\n"))
@@ -616,10 +641,70 @@ class PythonPackagesTab:
                     self.parent.after(0, lambda: messagebox.showinfo("Thành công", 
                         f"Đã cài đặt {package} thành công!\n\nThời gian: {time_str}"))
                 else:
+                    # THẤT BẠI - Parse lỗi và thử fix
+                    self.parent.after(0, lambda: self.log_output(f"\n❌ Cài đặt thất bại (lần 1)\n"))
+                    
+                    missing_dep = self.parse_missing_dependency(full_output)
+                    
+                    if missing_dep and not deps_installed:
+                        # Phát hiện thiếu dependency - thử cài và retry
+                        self.parent.after(0, lambda d=missing_dep: self.log_output(
+                            f"\n🔍 Phát hiện thiếu dependency: {d}\n"))
+                        self.parent.after(0, lambda: self.log_output(
+                            f"🔧 Đang cài build tools và thử lại...\n"))
+                        
+                        os_type = self.detect_os_type(container)
+                        if os_type != 'unknown':
+                            deps_ok = self.install_dependencies_sync(container, os_type)
+                            
+                            if deps_ok:
+                                # RETRY lần 2
+                                self.parent.after(0, lambda: self.log_output(
+                                    f"\n{'='*80}\n"))
+                                self.parent.after(0, lambda: self.log_output(
+                                    f"🔄 THỬ LẠI LẦN 2 sau khi cài dependencies...\n"))
+                                self.parent.after(0, lambda: self.log_output(
+                                    f"{'='*80}\n\n"))
+                                
+                                retry_process = subprocess.Popen(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT,
+                                    text=True,
+                                    encoding='utf-8',
+                                    errors='replace'
+                                )
+                                
+                                for line in iter(retry_process.stdout.readline, ''):
+                                    if line:
+                                        self.parent.after(0, lambda l=line: self.log_output(l))
+                                
+                                retry_process.wait()
+                                
+                                if retry_process.returncode == 0:
+                                    total_time2 = int(time.time() - start_time)
+                                    mins2, secs2 = divmod(total_time2, 60)
+                                    time_str2 = f"{mins2} phút {secs2} giây" if mins2 > 0 else f"{secs2} giây"
+                                    
+                                    self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
+                                    self.parent.after(0, lambda: self.log_output(
+                                        f"\n✅ Cài đặt thành công sau retry!\n"))
+                                    self.parent.after(0, lambda t=time_str2: self.log_output(
+                                        f"⏰ Tổng thời gian: {t}\n"))
+                                    self.parent.after(0, lambda: self.update_status(f"✅ Đã cài {package}"))
+                                    self.parent.after(0, lambda: messagebox.showinfo("Thành công", 
+                                        f"Đã cài đặt {package} thành công!\n\nThời gian: {time_str2}"))
+                                    return  # SUCCESS!
+                    
+                    # Vẫn thất bại
                     self.parent.after(0, lambda: self.reset_progress())
-                    self.parent.after(0, lambda: self.log_output(f"\n❌ Cài đặt thất bại với mã lỗi: {process.returncode}\n"))
+                    self.parent.after(0, lambda: self.log_output(
+                        f"\n❌ Cài đặt thất bại với mã lỗi: {process.returncode}\n"))
+                    self.parent.after(0, lambda: self.log_output(
+                        f"💡 Tip: Kiểm tra log ở trên để biết chi tiết lỗi\n"))
                     self.parent.after(0, lambda: self.update_status("❌ Cài đặt thất bại"))
-                    self.parent.after(0, lambda: messagebox.showerror("Lỗi", f"Cài đặt {package} thất bại!"))
+                    self.parent.after(0, lambda: messagebox.showerror("Lỗi", 
+                        f"Cài đặt {package} thất bại!\n\nKiểm tra log để biết chi tiết."))
                 
             except Exception as e:
                 error_msg = str(e)

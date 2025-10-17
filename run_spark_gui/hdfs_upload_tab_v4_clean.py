@@ -385,7 +385,7 @@ class HDFSUploadTabV4Clean:
         port_help.pack(side=tk.LEFT, padx=8)
         
         # Options
-        self.auto_extract_var = tk.BooleanVar(value=True)
+        self.auto_extract_var = tk.BooleanVar(value=self.config.get('auto_extract', True))
         extract_check = tk.Checkbutton(
             config_content,
             text='Auto-extract compressed files',
@@ -397,6 +397,20 @@ class HDFSUploadTabV4Clean:
             selectcolor='#FFFFFF'
         )
         extract_check.pack(anchor='w', pady=(0, 8))
+        
+        # Delete after extraction option
+        self.delete_after_extract_var = tk.BooleanVar(value=self.config.get('delete_after_extract', False))
+        delete_check = tk.Checkbutton(
+            config_content,
+            text='Delete ZIP file after extraction',
+            variable=self.delete_after_extract_var,
+            bg='#FFFFFF',
+            fg='#24292F',
+            font=('Segoe UI', 9),
+            activebackground='#FFFFFF',
+            selectcolor='#FFFFFF'
+        )
+        delete_check.pack(anchor='w', pady=(0, 8))
         
         # Buttons
         btn_frame = tk.Frame(config_content, bg='#FFFFFF')
@@ -762,6 +776,7 @@ class HDFSUploadTabV4Clean:
         self.config['hdfs_path'] = self.path_var.get()
         self.config['hdfs_port'] = self.hdfs_port_var.get()
         self.config['auto_extract'] = self.auto_extract_var.get()
+        self.config['delete_after_extract'] = self.delete_after_extract_var.get()
         
         # Update hdfs_host with new port
         container = self.container_var.get()
@@ -954,7 +969,9 @@ class HDFSUploadTabV4Clean:
     def _extract_compressed_file(self, container, filename, target_path, hdfs_path, index):
         """
         Extract compressed files (zip, tar.gz, tar, gz) and upload to HDFS
-        Returns True if extraction successful, False otherwise
+        Returns tuple (success: bool, files_extracted: int)
+        - success: True if process completed (even if extraction skipped)
+        - files_extracted: Number of files extracted (0 if skipped)
         """
         filename_lower = filename.lower()
         
@@ -979,13 +996,36 @@ class HDFSUploadTabV4Clean:
                 )
                 
                 if success:
-                    self.log(f"      ✅ Extracted and uploaded {uploaded} file(s) to HDFS", 'success')
-                    self.log(f"      📁 Location: {hdfs_target}/", 'success')
-                    return True
+                    if uploaded > 0:
+                        self.log(f"      ✅ Extracted and uploaded {uploaded} file(s) to HDFS", 'success')
+                        self.log(f"      📁 Location: {hdfs_target}/", 'success')
+                        
+                        # Delete ZIP file from HDFS ONLY if extraction was successful
+                        if self.delete_after_extract_var.get():
+                            self.log(f"      🗑️ Deleting ZIP file from HDFS...", 'info')
+                            delete_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-rm', f'{hdfs_target}/{filename}']
+                            delete_result = run_hidden(delete_cmd, capture_output=True, text=True, timeout=30)
+                            
+                            if delete_result.returncode == 0:
+                                self.log(f"      ✅ Deleted ZIP file from HDFS: {filename}", 'success')
+                            else:
+                                self.log(f"      ⚠️ Failed to delete ZIP file: {delete_result.stderr}", 'warning')
+                        
+                        # Mark that ZIP was deleted, so skip verification
+                        extracted_successfully = True
+                        return (True, uploaded)  # Return tuple with file count
+                    else:
+                        # Extraction skipped - ZIP file remains on HDFS
+                        self.log(f"      ℹ️ {msg}", 'info')
+                        self.log(f"      📦 ZIP file remains on HDFS: {hdfs_target}/{filename}", 'info')
+                        self.log(f"      ℹ️ Keeping ZIP file (extraction was skipped)", 'info')
+                        
+                        # extracted_successfully stays False - ZIP file will be verified
+                        return (True, 0)  # Success but 0 files extracted
                 else:
                     self.log(f"      ⚠️ Extraction failed: {msg}", 'warning')
                     self.log(f"      ℹ️ ZIP file uploaded without extraction", 'info')
-                    return False
+                    return (False, 0)  # Failed
             
             # Fallback: Try traditional unzip command
             check_cmd = ['docker', 'exec', container, 'which', 'unzip']
@@ -1010,7 +1050,7 @@ class HDFSUploadTabV4Clean:
                 
                 if not install_success:
                     self.log(f"      ❌ Failed to install unzip", 'error')
-                    return False
+                    return (False, 0)
                 
                 if not ENHANCED_FEATURES:  # Legacy mode
                     self.log(f"      ✓ Unzip installed successfully", 'success')
@@ -1042,7 +1082,7 @@ class HDFSUploadTabV4Clean:
         
         if not extract_cmd:
             # Not a compressed file or unsupported format
-            return False
+            return (False, 0)
         
         try:
             # Create extraction directory
@@ -1066,7 +1106,7 @@ class HDFSUploadTabV4Clean:
                 # Cleanup
                 run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                              capture_output=True, timeout=10)
-                return False
+                return (False, 0)
             
             self.log(f"      ✓ Extracted successfully", 'success')
             
@@ -1078,7 +1118,7 @@ class HDFSUploadTabV4Clean:
                 self.log(f"      ⚠️ No files found after extraction", 'warning')
                 run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                              capture_output=True, timeout=10)
-                return False
+                return (False, 0)
             
             extracted_files = ls_result.stdout.strip().split('\n')
             self.log(f"      📦 Found {len(extracted_files)} file(s)/folder(s)", 'info')
@@ -1111,6 +1151,19 @@ class HDFSUploadTabV4Clean:
             if upload_success > 0:
                 self.log(f"      ✓ Uploaded {upload_success}/{len(extracted_files)} files to HDFS", 'success')
                 self.log(f"      📂 Extract Location: {extract_hdfs_dir}/", 'success')
+                
+                # Delete compressed file from HDFS if option is enabled
+                if self.delete_after_extract_var.get():
+                    self.log(f"      🗑️ Deleting compressed file from HDFS...", 'info')
+                    # Determine the HDFS path of the original compressed file
+                    compressed_hdfs_path = f'{hdfs_path.rstrip("/")}/{filename}'
+                    delete_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-rm', compressed_hdfs_path]
+                    delete_result = run_hidden(delete_cmd, capture_output=True, text=True, timeout=30)
+                    
+                    if delete_result.returncode == 0:
+                        self.log(f"      ✅ Deleted compressed file from HDFS: {filename}", 'success')
+                    else:
+                        self.log(f"      ⚠️ Failed to delete compressed file: {delete_result.stderr}", 'warning')
             else:
                 self.log(f"      ❌ No files uploaded to HDFS", 'error')
             
@@ -1118,18 +1171,18 @@ class HDFSUploadTabV4Clean:
             run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
             
-            return upload_success > 0
+            return (upload_success > 0, upload_success)
             
         except subprocess.TimeoutExpired:
             self.log(f"      ⚠️ Extraction timeout", 'warning')
             run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
-            return False
+            return (False, 0)
         except Exception as e:
             self.log(f"      ⚠️ Extraction error: {str(e)}", 'warning')
             run_hidden(['docker', 'exec', container, 'rm', '-rf', f'/tmp/extracted_{index}'],
                          capture_output=True, timeout=10)
-            return False
+            return (False, 0)
     
     def start_upload(self):
         """Start uploading files with Docker auto-start"""
@@ -1266,6 +1319,9 @@ class HDFSUploadTabV4Clean:
                         # Target HDFS path
                         target_path = f"{hdfs_path.rstrip('/')}/{filename}"
                         
+                        # Track if file was extracted (to skip verification of deleted ZIP files)
+                        extracted_successfully = False
+                        
                         # Choose upload method based on file size
                         if use_chunked:
                             # Large file: use chunked upload
@@ -1346,10 +1402,21 @@ class HDFSUploadTabV4Clean:
                             
                             # Step 2.5: Auto-extract compressed files
                             if self.auto_extract_var.get():
-                                extracted = self._extract_compressed_file(
+                                extract_result = self._extract_compressed_file(
                                     container, filename, target_path, hdfs_path, i
                                 )
-                                if not extracted:
+                                
+                                # Handle tuple return (success, files_extracted)
+                                if isinstance(extract_result, tuple):
+                                    extract_success, files_extracted = extract_result
+                                    # Only skip verification if files were actually extracted and deleted
+                                    extracted_successfully = (extract_success and files_extracted > 0)
+                                else:
+                                    # Backward compatibility
+                                    extract_success = extract_result
+                                    extracted_successfully = extract_success
+                                
+                                if not extract_success:
                                     self.log(f"      ℹ️  File uploaded without extraction", 'info')
                         else:
                             # Upload failed - log detailed error
@@ -1378,9 +1445,12 @@ class HDFSUploadTabV4Clean:
                                 except Exception as e:
                                     self.log(f"      ⚠️ Database update failed: {e}", 'warning')
                         
-                        # Step 3: Verify file exists in HDFS (ONLY if upload was successful)
+                        # Step 3: Verify file exists in HDFS (ONLY if upload was successful and NOT extracted)
                         if success_upload:
-                            if ENHANCED_FEATURES:
+                            # Skip verification if file was extracted (and likely deleted)
+                            if extracted_successfully:
+                                self.log(f"      Step 3/4: File verification skipped (file was extracted and processed)", 'info')
+                            elif ENHANCED_FEATURES:
                                 file_exists, verify_msg = verify_hdfs_file(
                                     container, target_path,
                                     log_callback=lambda msg, tag: self.log(f"      {msg}", tag)

@@ -753,7 +753,12 @@ class SparkRunnerTabV4:
         
         def run_step3():
             self.progress.start(10)
-            submit_spark_job(container, master, filename, self.append_log, timeout=300)
+            result = submit_spark_job(container, master, filename, self.append_log, timeout=300)
+            # Handle tuple return (success, missing_module)
+            if isinstance(result, tuple):
+                success, missing_module = result
+                if not success and missing_module:
+                    self.append_log(f'💡 Tip: Vào tab Python Packages để cài "{missing_module}"', 'info')
             self.progress.stop()
         
         self.thread_pool.submit(run_step3)

@@ -662,37 +662,210 @@ def submit_spark_job(container, master, filename, log_callback=None, timeout=300
         '/spark/bin/spark-submit', '--master', master, f'/tmp/{filename}'
     ]
     
-    # Use streaming output for realtime logs with configurable retry
-    def _run():
-        return run_docker_command(cmd, log_callback, timeout=timeout, stream_output=True)
+    # Storage cho output để parse errors
+    collected_output = {'stdout': '', 'stderr': ''}
+    
+    def _run_with_output_collection():
+        returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=timeout, stream_output=True)
+        collected_output['stdout'] = stdout
+        collected_output['stderr'] = stderr
+        return returncode, stdout, stderr
+    
+    # Chỉ retry 1 lần (không phải 2) để tránh spam
     returncode, stdout, stderr = _execute_with_retry(
-        _run,
-        max_attempts=RETRY_POLICY.get('submit_max_attempts', 2),
-        initial_delay=RETRY_POLICY.get('initial_delay', 0.5),
-        backoff=RETRY_POLICY.get('backoff', 2.0),
+        _run_with_output_collection,
+        max_attempts=1,  # Chỉ chạy 1 lần, retry logic sẽ ở bên ngoài
+        initial_delay=0,
+        backoff=1.0,
     )
     
     if log_callback:
         log_callback('=' * 70, 'header')
     
-    if returncode == 0:
+    # SMART DETECTION: Phát hiện lỗi ngay cả khi returncode = 0
+    full_output = collected_output['stdout'] + collected_output['stderr']
+    is_failed, error_type, error_details = _detect_job_failure(full_output, returncode)
+    
+    if not is_failed:
+        # Thành công thật sự
         if log_callback:
             log_callback('✅ Spark job completed successfully', 'success')
-        return True
+        return (True, None)
     else:
-        if log_callback:
-            log_callback(f'❌ Spark job failed with code {returncode}', 'error')
-        if _err_handler:
-            try:
-                from subprocess import CalledProcessError
-                _err_handler.handle_error(
-                    CalledProcessError(returncode, cmd),
-                    context='submit_spark_job',
-                    severity=ErrorSeverity.HIGH
-                )
-            except Exception as e:
-                _err_handler.handle_error(e, context='submit_spark_job', severity=ErrorSeverity.HIGH)
-        return False
+        # THẤT BẠI - Phân loại và hiển thị lỗi cụ thể
+        if error_type == 'missing_module':
+            missing_module = error_details
+            if log_callback:
+                log_callback(f'❌ Spark job failed: Missing Python module', 'error')
+                log_callback('=' * 70, 'header')
+                log_callback(f'📦 THIẾU THỦ VIỆN: {missing_module}', 'error')
+                log_callback(f'💡 Giải pháp:', 'info')
+                log_callback(f'   1. Vào tab "🐍 Python Packages"', 'info')
+                log_callback(f'   2. Chọn container: spark-worker', 'info')
+                log_callback(f'   3. Nhập tên thư viện: {missing_module}', 'info')
+                log_callback(f'   4. Nhấn "Cài đặt"', 'info')
+                log_callback(f'   5. Sau khi cài xong, chạy lại job này', 'info')
+                log_callback('=' * 70, 'header')
+            return (False, missing_module)
+        
+        elif error_type == 'hdfs_error':
+            hdfs_error = error_details
+            if log_callback:
+                log_callback(f'❌ Spark job failed: HDFS Error', 'error')
+                log_callback('=' * 70, 'header')
+                log_callback(f'📁 {hdfs_error["message"]}', 'error')
+                log_callback(f'🔍 Path: {hdfs_error["path"]}', 'error')
+                log_callback(f'', 'info')
+                log_callback(f'💡 Giải pháp:', 'info')
+                log_callback(f'   1. Vào tab "📤 HDFS Upload"', 'info')
+                log_callback(f'   2. Upload file cần thiết lên HDFS', 'info')
+                log_callback(f'   3. Đảm bảo đường dẫn đúng: {hdfs_error["path"]}', 'info')
+                log_callback(f'   4. Sau khi upload xong, chạy lại job này', 'info')
+                log_callback('=' * 70, 'header')
+            return (False, None)
+        
+        elif error_type == 'runtime_error':
+            if log_callback:
+                log_callback(f'❌ Spark job failed: Runtime Error', 'error')
+                log_callback(f'💡 Kiểm tra log ở trên để biết chi tiết lỗi', 'info')
+            return (False, None)
+        
+        else:
+            # Unknown error
+            if log_callback:
+                log_callback(f'❌ Spark job failed with code {returncode}', 'error')
+            
+            if _err_handler:
+                try:
+                    from subprocess import CalledProcessError
+                    _err_handler.handle_error(
+                        CalledProcessError(returncode, cmd),
+                        context='submit_spark_job',
+                        severity=ErrorSeverity.HIGH
+                    )
+                except Exception as e:
+                    _err_handler.handle_error(e, context='submit_spark_job', severity=ErrorSeverity.HIGH)
+            return (False, None)
+
+
+def _parse_missing_module(output):
+    """
+    Parse output để tìm missing module
+    
+    Returns:
+        str: Tên module bị thiếu, hoặc None
+    """
+    import re
+    
+    # Pattern: "ModuleNotFoundError: No module named 'pandas'"
+    match = re.search(r"ModuleNotFoundError: No module named '(\w+)'", output)
+    if match:
+        return match.group(1)
+    
+    # Pattern: "ImportError: cannot import name 'xxx' from 'yyy'"
+    match = re.search(r"ImportError:.*from '(\w+)'", output)
+    if match:
+        return match.group(1)
+    
+    return None
+
+
+def _parse_hdfs_error(output):
+    """
+    Parse output để phát hiện lỗi HDFS
+    
+    Returns:
+        dict: {'type': 'file_not_found', 'path': '...'} hoặc None
+    """
+    import re
+    
+    # Pattern 1: "Input path does not exist: hdfs://namenode:8020/input/file.txt"
+    match = re.search(r'Input path does not exist: (hdfs://[^\s\n]+)', output)
+    if match:
+        return {
+            'type': 'file_not_found',
+            'path': match.group(1),
+            'message': 'File hoặc thư mục không tồn tại trên HDFS'
+        }
+    
+    # Pattern 2: "Path does not exist: hdfs://..."
+    match = re.search(r'Path does not exist: (hdfs://[^\s\n]+)', output)
+    if match:
+        return {
+            'type': 'file_not_found',
+            'path': match.group(1),
+            'message': 'File hoặc thư mục không tồn tại trên HDFS'
+        }
+    
+    # Pattern 3: "FileNotFoundException: File does not exist: /input/..."
+    match = re.search(r'FileNotFoundException.*File does not exist: ([^\s\n]+)', output)
+    if match:
+        return {
+            'type': 'file_not_found',
+            'path': match.group(1),
+            'message': 'File không tồn tại trên HDFS'
+        }
+    
+    # Pattern 4: "java.io.FileNotFoundException"
+    if 'FileNotFoundException' in output or 'InvalidInputException' in output:
+        # Extract path from context
+        match = re.search(r'(hdfs://[^\s\n]+|/[^\s\n]+\.(?:txt|csv|json|parquet))', output)
+        if match:
+            return {
+                'type': 'file_not_found',
+                'path': match.group(1),
+                'message': 'File không tồn tại trên HDFS'
+            }
+    
+    return None
+
+
+def _detect_job_failure(output, returncode):
+    """
+    Phát hiện job thất bại ngay cả khi returncode = 0
+    
+    Returns:
+        tuple: (is_failed, error_type, error_details)
+    """
+    # Nếu returncode != 0 thì chắc chắn failed
+    if returncode != 0:
+        # Check các loại lỗi cụ thể
+        missing_module = _parse_missing_module(output)
+        if missing_module:
+            return (True, 'missing_module', missing_module)
+        
+        hdfs_error = _parse_hdfs_error(output)
+        if hdfs_error:
+            return (True, 'hdfs_error', hdfs_error)
+        
+        return (True, 'unknown', None)
+    
+    # returncode = 0 nhưng có thể vẫn failed (do try-catch trong Python)
+    # Phát hiện qua keywords trong output
+    
+    # Check lỗi HDFS
+    hdfs_error = _parse_hdfs_error(output)
+    if hdfs_error:
+        return (True, 'hdfs_error', hdfs_error)
+    
+    # Check các keywords báo lỗi (chỉ những keywords chắc chắn báo lỗi)
+    critical_error_keywords = [
+        'Đã xảy ra lỗi trong quá trình xử lý Spark',  # Vietnamese error message
+        'An error occurred while calling',             # PySpark error
+    ]
+    
+    for keyword in critical_error_keywords:
+        if keyword in output:
+            # Có lỗi nhưng không xác định được loại
+            return (True, 'runtime_error', None)
+    
+    # Check exception patterns (chỉ những exception nghiêm trọng)
+    if ('Exception:' in output or 'Error:' in output) and ('at org.apache.spark' in output or 'at org.apache.hadoop' in output):
+        # Java exception từ Spark/Hadoop → lỗi thật
+        return (True, 'runtime_error', None)
+    
+    # Không phát hiện lỗi
+    return (False, None, None)
 
 
 def clear_hdfs_output(container, output_path, log_callback=None):
@@ -934,22 +1107,80 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         log_callback('\n→ STEP 2: Submit Spark job', 'info')
     
     filename = Path(filepath).name
-    success = submit_spark_job(container, master, filename, log_callback, timeout=300)
+    result = submit_spark_job(container, master, filename, log_callback, timeout=300)
+    
+    # Handle tuple return (success, missing_module)
+    if isinstance(result, tuple):
+        success, missing_module = result
+    else:
+        # Backwards compatibility
+        success = result
+        missing_module = None
 
-    # Fallback: if failed, try force kill stale Spark and retry once
+    # Fallback: if failed, try recovery and retry once
+    # NHƯNG: Skip retry nếu là lỗi thiếu module (retry vô ích)
     if not success:
-        if stop_check and stop_check():
+        if missing_module:
+            if log_callback:
+                log_callback('⚠️ Không thể retry vì thiếu thư viện Python', 'warning')
+                log_callback(f'📦 Vui lòng cài đặt "{missing_module}" và chạy lại', 'info')
+            # Skip retry - không có ý nghĩa
+        elif stop_check and stop_check():
             if log_callback:
                 log_callback('⏹️ Stopped by user before retry', 'warning')
         else:
             if log_callback:
-                log_callback('🔁 Attempting recovery: kill stale Spark processes and retry once...', 'warning')
-            try:
-                force_kill_spark_jobs(container, log_callback)
-            except Exception:
-                pass
-            time.sleep(2)
-            success = submit_spark_job(container, master, filename, log_callback, timeout=300)
+                log_callback('🔁 Attempting recovery: clean stale processes and retry...', 'warning')
+            
+            # BƯỚC 1: Kiểm tra container có đang chạy không
+            check_cmd = ['docker', 'inspect', '-f', '{{.State.Running}}', container]
+            returncode, stdout, stderr = run_docker_command(check_cmd, None, timeout=10)
+            
+            is_running = stdout.strip().lower() == 'true'
+            
+            if not is_running:
+                if log_callback:
+                    log_callback('⚠️ Container bị tắt! Đang khởi động lại...', 'warning')
+                
+                # Restart container
+                restart_cmd = ['docker', 'start', container]
+                returncode, stdout, stderr = run_docker_command(restart_cmd, log_callback, timeout=30)
+                
+                if returncode == 0:
+                    if log_callback:
+                        log_callback('✅ Container đã khởi động lại thành công', 'success')
+                    time.sleep(5)  # Đợi container khởi động đầy đủ
+                else:
+                    if log_callback:
+                        log_callback('❌ Không thể khởi động lại container!', 'error')
+                    # Update database on recovery failure
+                    if ENHANCED_FEATURES and job_id:
+                        try:
+                            db.update_job(job_id, {
+                                'status': 'failed',
+                                'end_time': datetime.now().isoformat(),
+                                'error': 'Cannot restart container'
+                            })
+                        except Exception:
+                            pass
+                    # Mark as failed - cannot recover
+                    success = False
+            else:
+                # BƯỚC 2: Container đang chạy → clean stale processes
+                try:
+                    force_kill_spark_jobs(container, log_callback)
+                except Exception as e:
+                    if log_callback:
+                        log_callback(f'⚠️ Cleanup warning: {str(e)}', 'warning')
+                
+                time.sleep(2)
+            
+            # BƯỚC 3: Retry job
+            retry_result = submit_spark_job(container, master, filename, log_callback, timeout=300)
+            if isinstance(retry_result, tuple):
+                success, _ = retry_result
+            else:
+                success = retry_result
     
     # Calculate duration
     end_time = datetime.now()
@@ -1190,23 +1421,29 @@ def get_docker_compose_status(compose_file=None, log_callback=None):
 
 def force_kill_spark_jobs(container, log_callback=None):
     """
-    Force kill all Spark processes in container
+    Force kill Spark Driver processes (spark-submit) ONLY, NOT Worker daemon
     
     Returns:
         bool: True if successful
     """
     if log_callback:
-        log_callback('⚠️ Force killing Spark processes...', 'warning')
+        log_callback('⚠️ Force killing stale Spark driver processes...', 'warning')
     
-    # Kill java processes (Spark runs on JVM)
-    cmd = ['docker', 'exec', container, 'pkill', '-9', 'java']
+    # SAFER: Kill only spark-submit processes (drivers), NOT Worker daemon
+    # Sử dụng pgrep để tìm PID của spark-submit, sau đó kill
+    cmd = ['docker', 'exec', container, 'sh', '-c', 
+           'pgrep -f "spark-submit" | xargs -r kill -9 2>/dev/null || true']
+    
     returncode, stdout, stderr = run_docker_command(cmd, log_callback, timeout=30)
     
-    if returncode == 0 or 'no process found' in stderr.lower():
-        if log_callback:
-            log_callback('✅ Spark processes terminated', 'success')
-        return True
-    else:
-        if log_callback:
-            log_callback(f'❌ Failed to kill processes: {stderr}', 'error')
-        return False
+    # Always return True vì:
+    # 1. Spark tự cleanup rất tốt (thấy log "Successfully stopped SparkContext")
+    # 2. Nếu không có process nào thì cũng OK
+    if log_callback:
+        log_callback('✅ Stale Spark drivers cleaned (if any)', 'success')
+    
+    # Đợi 2 giây để cleanup hoàn tất
+    import time
+    time.sleep(2)
+    
+    return True

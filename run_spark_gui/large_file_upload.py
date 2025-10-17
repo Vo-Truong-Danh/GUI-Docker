@@ -14,6 +14,16 @@ from pathlib import Path
 from datetime import datetime
 from typing import Callable, Optional, Tuple
 
+# Import hidden subprocess utilities
+try:
+    from subprocess_utils import run_hidden, popen_hidden
+except ImportError:
+    # Fallback if not available
+    def run_hidden(*args, **kwargs):
+        return subprocess.run(*args, **kwargs)
+    def popen_hidden(*args, **kwargs):
+        return subprocess.Popen(*args, **kwargs)
+
 # Configuration
 # CHUNK_SIZE: Giảm nếu mạng chậm/không ổn định
 # - 50 MB: Mạng nhanh/ổn định (mặc định)
@@ -84,7 +94,7 @@ def upload_large_file_chunked(
         temp_dir_container = f"/tmp/upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         log(f"📁 Creating temp directory in container: {temp_dir_container}", 'info')
         
-        subprocess.run(
+        run_hidden(
             ['docker', 'exec', container, 'mkdir', '-p', temp_dir_container],
             check=True,
             capture_output=True
@@ -108,7 +118,9 @@ def upload_large_file_chunked(
                     if not chunk_data:
                         break
                     
-                    chunk_filename = f"chunk_{chunk_index:04d}"
+                    # Use 1-based numbering: chunk_1, chunk_2, ... (not chunk_0000, chunk_0001)
+                    chunk_number = chunk_index + 1
+                    chunk_filename = f"chunk_{chunk_number}"
                     chunk_path_local = os.path.join(temp_dir_local, chunk_filename)
                     chunk_path_container = f"{temp_dir_container}/{chunk_filename}"
                     
@@ -116,16 +128,16 @@ def upload_large_file_chunked(
                     with open(chunk_path_local, 'wb') as chunk_file:
                         chunk_file.write(chunk_data)
                     
-                    # Copy chunk to container
-                    log(f"  📦 Chunk {chunk_index + 1}/{num_chunks}: {chunk_size / (1024**2):.2f} MB", 'info')
+                    # Log progress
+                    log(f"  📦 Chunk {chunk_number}/{num_chunks}: {chunk_size / (1024**2):.2f} MB", 'info')
                     
+                    # Copy chunk to container
                     # Timeout: 300s (5 phút) cho mỗi chunk 50MB
-                    # Tăng lên nếu mạng chậm: 600s (10 phút)
-                    subprocess.run(
+                    run_hidden(
                         ['docker', 'cp', chunk_path_local, f'{container}:{chunk_path_container}'],
                         check=True,
                         capture_output=True,
-                        timeout=300  # Tăng từ 120s → 300s
+                        timeout=300
                     )
                     
                     # Clean up local temp chunk
@@ -145,16 +157,43 @@ def upload_large_file_chunked(
             log("🔗 Merging chunks...", 'info')
             
             merged_file = f"{temp_dir_container}/{filename}"
-            merge_cmd = f"cat {temp_dir_container}/chunk_* > {merged_file}"
             
-            subprocess.run(
-                ['docker', 'exec', container, 'bash', '-c', merge_cmd],
-                check=True,
+            # Use sh (not bash) and sort chunks numerically to ensure correct order
+            # chunk_1, chunk_2, ..., chunk_10, chunk_11 (not chunk_1, chunk_10, chunk_11, chunk_2)
+            merge_cmd = f"for i in $(seq 1 {num_chunks}); do cat {temp_dir_container}/chunk_$i; done > {merged_file}"
+            
+            merge_result = run_hidden(
+                ['docker', 'exec', container, 'sh', '-c', merge_cmd],
                 capture_output=True,
+                text=True,
                 timeout=300
             )
             
+            if merge_result.returncode != 0:
+                log(f"  ❌ Merge failed: {merge_result.stderr}", 'error')
+                return False, f"Failed to merge chunks: {merge_result.stderr}"
+            
             log(f"  ✓ Merged into: {merged_file}", 'success')
+            
+            # CRITICAL: Verify merged file size
+            verify_size_cmd = ['docker', 'exec', container, 'stat', '-c', '%s', merged_file]
+            verify_result = run_hidden(verify_size_cmd, capture_output=True, text=True, timeout=10)
+            
+            if verify_result.returncode == 0:
+                merged_size = int(verify_result.stdout.strip())
+                expected_size = file_size  # Use file_size from function scope
+                
+                log(f"  📊 Verification:", 'info')
+                log(f"     Expected: {expected_size / 1024 / 1024:.2f} MB", 'info')
+                log(f"     Merged:   {merged_size / 1024 / 1024:.2f} MB", 'info')
+                
+                if merged_size != expected_size:
+                    log(f"  ❌ Size mismatch! File corrupted during merge", 'error')
+                    return False, f"Size mismatch: expected {expected_size}, got {merged_size}"
+                
+                log(f"  ✅ Size verification passed", 'success')
+            else:
+                log(f"  ⚠️ Could not verify merged file size", 'warning')
             
             # Upload merged file to HDFS
             log("", 'info')
@@ -162,7 +201,7 @@ def upload_large_file_chunked(
             
             hdfs_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f', merged_file, hdfs_path]
             
-            result = subprocess.run(
+            result = run_hidden(
                 hdfs_cmd,
                 capture_output=True,
                 text=True,
@@ -175,11 +214,36 @@ def upload_large_file_chunked(
             
             log(f"  ✓ Uploaded to HDFS: {hdfs_path}", 'success')
             
-            # Cleanup container temp directory
+            # Copy merged file to /tmp/ for extraction (if it's a compressed file)
+            # This is needed for extraction step that runs later
+            filename_lower = filename.lower()
+            is_compressed = (filename_lower.endswith('.zip') or 
+                           filename_lower.endswith('.tar.gz') or 
+                           filename_lower.endswith('.tgz') or
+                           filename_lower.endswith('.tar') or
+                           filename_lower.endswith('.gz'))
+            
+            if is_compressed:
+                log("", 'info')
+                log("📋 Copying to /tmp/ for extraction...", 'info')
+                
+                copy_cmd = f"cp {merged_file} /tmp/{filename}"
+                copy_result = run_hidden(
+                    ['docker', 'exec', container, 'sh', '-c', copy_cmd],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if copy_result.returncode == 0:
+                    log(f"  ✓ Copied to /tmp/{filename} for extraction", 'success')
+                else:
+                    log(f"  ⚠️ Copy failed: {copy_result.stderr}", 'warning')
+            
+            # Cleanup container temp directory (after copying to /tmp/)
             log("", 'info')
             log("🧹 Cleaning up temporary files...", 'info')
             
-            subprocess.run(
+            run_hidden(
                 ['docker', 'exec', container, 'rm', '-rf', temp_dir_container],
                 capture_output=True
             )
@@ -191,7 +255,7 @@ def upload_large_file_chunked(
             log("🔍 Verifying upload...", 'info')
             
             verify_cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-ls', hdfs_path]
-            verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
+            verify_result = run_hidden(verify_cmd, capture_output=True, text=True)
             
             if verify_result.returncode == 0 and hdfs_path in verify_result.stdout:
                 log(f"  ✅ Verification successful!", 'success')
@@ -231,7 +295,7 @@ def _upload_direct(
         
         # Copy to container
         log("  📦 Copying to container...", 'info')
-        subprocess.run(
+        run_hidden(
             ['docker', 'cp', filepath, f'{container}:{temp_path}'],
             check=True,
             capture_output=True,
@@ -241,7 +305,7 @@ def _upload_direct(
         
         # Upload to HDFS
         log("  📤 Uploading to HDFS...", 'info')
-        subprocess.run(
+        run_hidden(
             ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f', temp_path, hdfs_path],
             check=True,
             capture_output=True,
@@ -250,7 +314,7 @@ def _upload_direct(
         log(f"    ✓ Uploaded to {hdfs_path}", 'success')
         
         # Cleanup
-        subprocess.run(
+        run_hidden(
             ['docker', 'exec', container, 'rm', temp_path],
             capture_output=True
         )
@@ -265,7 +329,7 @@ def get_hdfs_file_info(container: str, hdfs_path: str) -> dict:
     """Get file information from HDFS"""
     try:
         cmd = ['docker', 'exec', container, 'hdfs', 'dfs', '-stat', '%n,%b,%y', hdfs_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = run_hidden(cmd, capture_output=True, text=True, timeout=30)
         
         if result.returncode == 0:
             parts = result.stdout.strip().split(',')
