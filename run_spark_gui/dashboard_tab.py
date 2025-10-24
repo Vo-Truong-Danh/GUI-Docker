@@ -12,6 +12,8 @@ import threading
 import time
 import http.server
 import socketserver
+import subprocess
+import shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -119,6 +121,36 @@ class DashboardTab:
             state=tk.DISABLED
         )
         self.stop_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Copy Images button
+        self.copy_btn = tk.Button(
+            button_frame,
+            text="📥 Copy Ảnh từ Container",
+            command=self.copy_images_from_container,
+            font=('Segoe UI', 11, 'bold'),
+            bg='#6C63FF',
+            fg='white',
+            padx=20,
+            pady=10,
+            relief=tk.SOLID,
+            bd=1
+        )
+        self.copy_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Refresh Dashboard button
+        self.refresh_btn = tk.Button(
+            button_frame,
+            text="🔄 Làm mới Dashboard",
+            command=self.refresh_dashboard,
+            font=('Segoe UI', 11, 'bold'),
+            bg='#17A2B8',
+            fg='white',
+            padx=20,
+            pady=10,
+            relief=tk.SOLID,
+            bd=1
+        )
+        self.refresh_btn.pack(side=tk.LEFT, padx=5)
         
         # Status frame
         status_frame = tk.Frame(main_frame, bg='#F8F9FA', relief=tk.SOLID, bd=1)
@@ -274,3 +306,135 @@ class DashboardTab:
         """Cleanup when tab closes"""
         if self.server_running:
             self.stop_server()
+    
+    def refresh_dashboard(self):
+        """Refresh dashboard in browser (clear cache)"""
+        if not self.server_running:
+            messagebox.showinfo("Info", "Server chưa chạy! Hãy khởi động trước")
+            return
+        
+        url = f"http://localhost:{self.port}/unified_dashboard.html?nocache={int(time.time())}"
+        try:
+            self.append_log("🔄 Làm mới dashboard trong browser...", "info")
+            webbrowser.open(url)
+            self.append_log("✅ Dashboard đã được làm mới", "success")
+        except Exception as e:
+            self.append_log(f"❌ Lỗi: {str(e)}", "error")
+    
+    def copy_images_from_container(self):
+        """Copy ML result images from Docker container to host machine"""
+        self.append_log("📥 Bắt đầu copy ảnh từ container...", "info")
+        self.copy_btn.config(state=tk.DISABLED)
+        
+        # Run in thread to avoid blocking UI
+        thread = threading.Thread(target=self._copy_images_thread, daemon=True)
+        thread.start()
+    
+    def _copy_images_thread(self):
+        """Background thread to copy images"""
+        try:
+            # Get project root directory
+            project_root = str(Path(__file__).parent.parent)
+            tmp_dir = os.path.join(project_root, "tmp")
+            
+            # Create tmp directory if not exists
+            os.makedirs(tmp_dir, exist_ok=True)
+            self.append_log(f"📂 Thư mục đích: {tmp_dir}", "info")
+            
+            # Get list of running containers
+            result = subprocess.run(
+                ["docker", "ps", "--quiet"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                self.append_log("❌ Docker không khả dụng hoặc không có container chạy", "error")
+                self.copy_btn.config(state=tk.NORMAL)
+                return
+            
+            containers = result.stdout.strip().split('\n')
+            
+            if not containers or not containers[0]:
+                self.append_log("❌ Không có container nào đang chạy", "error")
+                self.copy_btn.config(state=tk.NORMAL)
+                return
+            
+            # Try to copy from each container
+            copied_count = 0
+            container_found = False
+            
+            for container_id in containers:
+                if not container_id.strip():
+                    continue
+                
+                try:
+                    # Get container name
+                    name_result = subprocess.run(
+                        ["docker", "ps", "--filter", f"id={container_id}", "--format", "{{.Names}}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    container_name = name_result.stdout.strip()
+                    
+                    # Check if images exist in container using find command (more reliable)
+                    check_cmd = 'find /tmp -name "ml_result_*.png" -type f'
+                    result = subprocess.run(
+                        ["docker", "exec", container_id, "sh", "-c", check_cmd],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    
+                    found_files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+                    
+                    if found_files:
+                        container_found = True
+                        self.append_log(f"🐳 Tìm thấy {len(found_files)} ảnh trong container: {container_name}", "success")
+                        
+                        # Copy each file individually
+                        for src_path in found_files:
+                            try:
+                                filename = os.path.basename(src_path)
+                                dst_path = os.path.join(tmp_dir, filename)
+                                
+                                # Copy using docker cp
+                                copy_result = subprocess.run(
+                                    ["docker", "cp", f"{container_id}:{src_path}", dst_path],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=15
+                                )
+                                
+                                if copy_result.returncode == 0 and os.path.exists(dst_path):
+                                    file_size = os.path.getsize(dst_path)
+                                    self.append_log(f"   ✓ {filename} ({file_size/1024:.1f} KB)", "success")
+                                    copied_count += 1
+                                else:
+                                    self.append_log(f"   ⚠ {filename}: {copy_result.stderr}", "warning")
+                            except Exception as e:
+                                self.append_log(f"   ⚠ {filename}: {str(e)}", "warning")
+                        
+                        break
+                
+                except Exception as e:
+                    self.append_log(f"⚠ Lỗi kiểm tra container {container_name}: {str(e)}", "warning")
+                    continue
+            
+            if not container_found:
+                self.append_log("⚠ Không tìm thấy ảnh trong bất kỳ container nào", "warning")
+                self.append_log("💡 Hãy chạy code phân tích trong container trước", "info")
+            elif copied_count > 0:
+                self.append_log(f"✅ Đã copy {copied_count} ảnh thành công!", "success")
+                self.append_log(f"📍 Vị trí: {tmp_dir}", "success")
+                self.append_log(f"🔄 Reload browser để xem ảnh (hoặc nhấn F5)", "info")
+            else:
+                self.append_log(f"❌ Không copy được ảnh nào. Kiểm tra quyền Docker", "error")
+            
+        except Exception as e:
+            self.append_log(f"❌ Lỗi copy ảnh: {str(e)}", "error")
+        
+        finally:
+            self.copy_btn.config(state=tk.NORMAL)
