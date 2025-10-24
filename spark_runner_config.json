@@ -8,6 +8,7 @@
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
   "history": [
+    "C:/Users/Pls/AppData/Local/Temp/temp_ml_analysis.py",
     "D:/Downloads/code7.py",
     "D:/Downloads/2001220573/2001220573.py",
     "D:/BaiTapSinhVien/TH BigData/KT/2001220573/2001220573.py",
@@ -16,8 +17,7 @@
     "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum6.py",
     "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum5.py",
     "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum4.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum3.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum2.py"
+    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum3.py"
   ],
   "hdfs_path": "/input",
   "hdfs_port": "8020",

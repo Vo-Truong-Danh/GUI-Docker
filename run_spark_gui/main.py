@@ -115,6 +115,8 @@ print("🔄 Loading Settings Tab V4...")
 from settings_tab_v4 import SettingsTabV4
 print("🔄 Loading Python Packages Manager...")
 from python_packages_tab import PythonPackagesTab
+print("🔄 Loading ML Analytics Tab...")
+from ml_analytics_tab import MLAnalyticsTab
 
 # Import AI API (PySpark + Real HDFS + Fixed Provider Mapping)
 try:
@@ -468,7 +470,11 @@ class App:
         self.packages_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.packages_tab, text='📦 Python Packages')
         
-        # Tab 8: Settings
+        # Tab 8: ML Analytics
+        self.ml_analytics_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.ml_analytics_tab, text='🤖 ML Analytics')
+        
+        # Tab 9: Settings
         self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text='⚙️ Settings')
 
@@ -598,6 +604,8 @@ class App:
                 'AI API',
                 'Performance Monitor',
                 'Docker Compose',
+                'Python Packages',
+                'ML Analytics',
                 'Settings'
             ]
             current_tab = self.notebook.index(self.notebook.select())
@@ -838,6 +846,35 @@ class App:
             error_label = tk.Label(
                 self.packages_tab,
                 text=f"❌ Python Packages Manager failed to load:\n{str(e)}\n\nPlease check console for details.",
+                font=('Segoe UI', 10),
+                fg='#CF222E',
+                bg='#FFFFFF',
+                justify=tk.LEFT,
+                padx=20, pady=20
+            )
+            error_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize ML Analytics Tab
+        try:
+            print("🔄 Initializing ML Analytics Tab...")
+            self.ml_analytics = MLAnalyticsTab(
+                parent_frame=self.ml_analytics_tab,
+                config=self.config,
+                status_callback=self.update_status,
+                log_callback=self.append_log
+            )
+            print("✅ ML Analytics Tab initialized")
+        except Exception as e:
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="Initialize ML Analytics Tab", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"⚠️ ML Analytics Tab initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
+            # Create fallback message in tab
+            error_label = tk.Label(
+                self.ml_analytics_tab,
+                text=f"❌ ML Analytics Tab failed to load:\n{str(e)}\n\nPlease check console for details.",
                 font=('Segoe UI', 10),
                 fg='#CF222E',
                 bg='#FFFFFF',

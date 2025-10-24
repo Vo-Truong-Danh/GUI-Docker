@@ -495,7 +495,7 @@ tkinter (built-in)
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/GUI-Docker.git
+git clone https://github.com/Vo-Truong-Danh/GUI-Docker.git
 cd GUI-Docker/run_spark_gui
 ```
 
@@ -1046,8 +1046,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 1. **Check Logs**: Menu → Help → View Logs
 2. **Export Logs**: Ctrl+S
-3. **GitHub Issues**: https://github.com/yourusername/GUI-Docker/issues
-4. **Documentation**: https://github.com/yourusername/GUI-Docker/wiki
+3. **GitHub Issues**: https://github.com/Vo-Truong-Danh/GUI-Docker/issues
+4. **Documentation**: https://github.com/Vo-Truong-Danh/GUI-Docker/wiki
 
 ---
 
@@ -1317,16 +1317,16 @@ in the Software without restriction...
 
 ## 📞 Contact & Support
 
-- **GitHub**: https://github.com/yourusername/GUI-Docker
-- **Issues**: https://github.com/yourusername/GUI-Docker/issues
+- **GitHub**: https://github.com/Vo-Truong-Danh/GUI-Docker
+- **Issues**: https://github.com/Vo-Truong-Danh/GUI-Docker/issues
 - **Email**: support@example.com
-- **Documentation**: https://github.com/yourusername/GUI-Docker/wiki
+- **Documentation**: https://github.com/Vo-Truong-Danh/GUI-Docker/wiki
 
 ---
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/GUI-Docker&type=Date)](https://star-history.com/#yourusername/GUI-Docker&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Vo-Truong-Danh/GUI-Docker&type=Date)](https://star-history.com/#Vo-Truong-Danh/GUI-Docker&Date)
 
 ---
 
