@@ -13,6 +13,8 @@ import pandas as pd
 import numpy as np
 import warnings
 warnings.filterwarnings('ignore')
+import os
+import json
 
 # Set style - Dùng style có sẵn (seaborn-darkgrid không còn trong matplotlib mới)
 try:
@@ -21,7 +23,17 @@ except:
     pass
 sns.set_palette("husl")
 
-OUTPUT_DIR = "/tmp/"
+# ============================================
+# FIX ĐƯỜNG DẪN TRIỆT ĐỀ - WINDOWS COMPATIBLE
+# ============================================
+# Đặt OUTPUT_DIR ở current directory (/tmp trong code)
+# Tức là: D:\BaiTapSinhVien\TH BigData\GUI-Docker\tmp
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)  # Go up from run_spark_gui
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "tmp")
+
+# Tạo thư mục tmp nếu chưa tồn tại
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 print("\n" + "=" * 80)
 print("     PHÂN TÍCH BIG DATA VỚI MACHINE LEARNING & VISUALIZATION NÂNG CAO")
@@ -464,8 +476,8 @@ if customer_segments_pd is not None:
     axes[1, 1].grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + 'ml_result_1_customer_clustering.png', dpi=300, bbox_inches='tight')
-    print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_1_customer_clustering.png")
+    plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_1_customer_clustering.png'), dpi=300, bbox_inches='tight')
+    print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_1_customer_clustering.png')}")
     plt.close()
 
 # ====================
@@ -540,8 +552,8 @@ ax2.legend(loc='upper right')
 axes[1, 1].grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(OUTPUT_DIR + 'ml_result_2_regression_analysis.png', dpi=300, bbox_inches='tight')
-print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_2_regression_analysis.png")
+plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_2_regression_analysis.png'), dpi=300, bbox_inches='tight')
+print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_2_regression_analysis.png')}")
 plt.close()
 
 # ====================
@@ -606,8 +618,8 @@ axes[1, 1].tick_params(axis='x', rotation=45)
 axes[1, 1].grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(OUTPUT_DIR + 'ml_result_3_product_clustering.png', dpi=300, bbox_inches='tight')
-print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_3_product_clustering.png")
+plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_3_product_clustering.png'), dpi=300, bbox_inches='tight')
+print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_3_product_clustering.png')}")
 plt.close()
 
 # ====================
@@ -723,8 +735,8 @@ for bar, val in zip(bars_metrics, metrics_data['Value']):
     ax6.text(bar.get_x() + bar.get_width()/2., height,
              f'{val:.3f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
 
-plt.savefig(OUTPUT_DIR + 'ml_result_4_comprehensive_dashboard.png', dpi=300, bbox_inches='tight')
-print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_4_comprehensive_dashboard.png")
+plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_4_comprehensive_dashboard.png'), dpi=300, bbox_inches='tight')
+print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_4_comprehensive_dashboard.png')}")
 plt.close()
 
 # ====================
@@ -825,8 +837,8 @@ if customer_segments_pd is not None:
                        fontsize=10, fontweight='bold')
 
 plt.tight_layout()
-plt.savefig(OUTPUT_DIR + 'ml_result_5_advanced_analytics.png', dpi=300, bbox_inches='tight')
-print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_5_advanced_analytics.png")
+plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_5_advanced_analytics.png'), dpi=300, bbox_inches='tight')
+print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_5_advanced_analytics.png')}")
 plt.close()
 
 # ====================
@@ -926,9 +938,113 @@ axes[1, 1].legend(fontsize=10)
 axes[1, 1].grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(OUTPUT_DIR + 'ml_result_6_trends_comparison.png', dpi=300, bbox_inches='tight')
-print(f"  ✅ Đã lưu: {OUTPUT_DIR}ml_result_6_trends_comparison.png")
+plt.savefig(os.path.join(OUTPUT_DIR, 'ml_result_6_trends_comparison.png'), dpi=300, bbox_inches='tight')
+print(f"  ✅ Đã lưu: {os.path.join(OUTPUT_DIR, 'ml_result_6_trends_comparison.png')}")
 plt.close()
+
+# ============================================
+# TẠO FILE TỔNG KẾT JSON (CHO DASHBOARD)
+# ============================================
+print("\n[7/6] Tạo file tổng kết JSON cho Dashboard...")
+
+try:
+    # Chuẩn bị dữ liệu tổng kết
+    summary_data = {
+        # Metrics cơ bản
+        "total_revenue": float(total_revenue),
+        "total_transactions": int(total_transactions),
+        "avg_order_value": float(avg_order_value),
+        "total_records": int(total_records),
+        
+        # Thông tin quốc gia
+        "num_countries": int(df_clean.select('Country').distinct().count()),
+        "num_products": int(df_clean.select('Description').distinct().count()),
+        
+        # Thông tin khách hàng
+        "num_customers": 0,
+        "num_vip": 0,
+        "num_regular": 0,
+        "num_occasional": 0,
+        
+        # ML Model Performance
+        "lr_r2_score": float(r2_score),
+        "lr_rmse": float(rmse),
+        "rf_r2_score": float(rf_r2),
+        "rf_rmse": float(rf_rmse),
+        "best_model": "Random Forest" if rf_r2 > r2_score else "Linear Regression",
+        "best_model_r2": float(max(r2_score, rf_r2)),
+        
+        # Top performers
+        "top_country": str(top_countries_revenue.iloc[0]['Country']) if len(top_countries_revenue) > 0 else "N/A",
+        "top_country_revenue": float(top_countries_revenue.iloc[0]['Total_Revenue']) if len(top_countries_revenue) > 0 else 0,
+        "top_product": str(top_products.iloc[0]['Description']) if len(top_products) > 0 else "N/A",
+        "top_product_revenue": float(top_products.iloc[0]['Total_Revenue']) if len(top_products) > 0 else 0,
+        
+        # Chi tiết phân cụm
+        "customer_segments": {},
+        "product_categories": {},
+        
+        # Metadata
+        "analysis_date": str(pd.Timestamp.now()),
+        "data_points": int(total_records),
+        "analysis_status": "completed"
+    }
+    
+    # Thêm thông tin khách hàng nếu có
+    if customer_col and customer_segments_pd is not None:
+        summary_data["num_customers"] = len(customer_segments_pd)
+        
+        # Đếm từng segment
+        vip_count = len(customer_segments_pd[customer_segments_pd['Segment'] == 'VIP Customers'])
+        regular_count = len(customer_segments_pd[customer_segments_pd['Segment'] == 'Regular Customers'])
+        occasional_count = len(customer_segments_pd[customer_segments_pd['Segment'] == 'Occasional Customers'])
+        
+        summary_data["num_vip"] = int(vip_count)
+        summary_data["num_regular"] = int(regular_count)
+        summary_data["num_occasional"] = int(occasional_count)
+        
+        # Chi tiết segments
+        summary_data["customer_segments"] = {
+            "VIP": {
+                "count": int(vip_count),
+                "percentage": float(vip_count / len(customer_segments_pd) * 100) if len(customer_segments_pd) > 0 else 0
+            },
+            "Regular": {
+                "count": int(regular_count),
+                "percentage": float(regular_count / len(customer_segments_pd) * 100) if len(customer_segments_pd) > 0 else 0
+            },
+            "Occasional": {
+                "count": int(occasional_count),
+                "percentage": float(occasional_count / len(customer_segments_pd) * 100) if len(customer_segments_pd) > 0 else 0
+            }
+        }
+    
+    # Thêm thông tin sản phẩm
+    if product_clusters_pd is not None:
+        # Chi tiết categories
+        categories = product_clusters_pd['ProductCategory'].value_counts()
+        for cat, count in categories.items():
+            summary_data["product_categories"][str(cat)] = {
+                "count": int(count),
+                "percentage": float(count / len(product_clusters_pd) * 100) if len(product_clusters_pd) > 0 else 0
+            }
+    
+    # Lưu JSON file
+    json_path = os.path.join(OUTPUT_DIR, 'ml_analysis_summary.json')
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(summary_data, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Đã lưu: {json_path}")
+    print(f"📊 Dữ liệu tóm tắt:")
+    print(f"   • Tổng doanh thu: ${summary_data['total_revenue']:,.2f}")
+    print(f"   • Tổng giao dịch: {summary_data['total_transactions']:,}")
+    print(f"   • Giá trị trung bình: ${summary_data['avg_order_value']:.2f}")
+    print(f"   • Best Model R²: {summary_data['best_model_r2']:.4f}")
+    print(f"   • Khách hàng: {summary_data['num_customers']:,}")
+    print(f"   • Sản phẩm: {summary_data['num_products']:,}")
+    
+except Exception as e:
+    print(f"⚠️ Lỗi tạo JSON: {e}")
 
 # ============================================
 # HOÀN THÀNH VÀ SUMMARY

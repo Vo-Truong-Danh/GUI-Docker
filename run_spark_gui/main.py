@@ -117,6 +117,8 @@ print("🔄 Loading Python Packages Manager...")
 from python_packages_tab import PythonPackagesTab
 print("🔄 Loading ML Analytics Tab...")
 from ml_analytics_tab import MLAnalyticsTab
+print("🔄 Loading Dashboard Tab...")
+from dashboard_tab import DashboardTab
 
 # Import AI API (PySpark + Real HDFS + Fixed Provider Mapping)
 try:
@@ -450,31 +452,23 @@ class App:
         self.hdfs_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.hdfs_tab, text='📤 HDFS Upload')
         
-        # Tab 3: AI Code Generator (Old)
-        self.ai_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.ai_tab, text='🤖 AI Code Generator')
-        
-        # Tab 4: AI API (PySpark + Real HDFS)
+        # Tab 3: AI API (PySpark + Real HDFS)
         self.advanced_ai_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.advanced_ai_tab, text='🤖 AI API')
         
-        # Tab 5: Performance Monitor
-        self.perf_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.perf_tab, text='📊 Performance Monitor')
-        
-        # Tab 6: Docker Compose Editor
+        # Tab 4: Docker Compose Editor
         self.compose_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.compose_tab, text='🐳 Docker Compose')
         
-        # Tab 7: Python Packages Manager
+        # Tab 5: Python Packages Manager
         self.packages_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.packages_tab, text='📦 Python Packages')
         
-        # Tab 8: ML Analytics
-        self.ml_analytics_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.ml_analytics_tab, text='🤖 ML Analytics')
+        # Tab 6: Dashboard (NEW)
+        self.dashboard_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.dashboard_tab, text='📊 Dashboard')
         
-        # Tab 9: Settings
+        # Tab 7: Settings
         self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text='⚙️ Settings')
 
@@ -669,13 +663,6 @@ class App:
             log_callback=self.append_log
         )
         
-        self.ai_generator = AICodeGeneratorTab(
-            parent_frame=self.ai_tab,
-            config=self.config,
-            status_callback=self.update_status,
-            log_callback=self.append_log
-        )
-        
         # Initialize AI API
         if ADVANCED_AI_AVAILABLE:
             try:
@@ -791,13 +778,6 @@ class App:
             )
             restart_label.pack()
         
-        self.perf_monitor = PerformanceMonitor(
-            parent_frame=self.perf_tab,
-            config=self.config,
-            status_callback=self.update_status,
-            log_callback=self.append_log
-        )
-        
         # Initialize Docker Compose Editor with error handling
         try:
             print("🔄 Initializing Docker Compose Editor...")
@@ -854,35 +834,6 @@ class App:
             )
             error_label.pack(fill=tk.BOTH, expand=True)
         
-        # Initialize ML Analytics Tab
-        try:
-            print("🔄 Initializing ML Analytics Tab...")
-            self.ml_analytics = MLAnalyticsTab(
-                parent_frame=self.ml_analytics_tab,
-                config=self.config,
-                status_callback=self.update_status,
-                log_callback=self.append_log
-            )
-            print("✅ ML Analytics Tab initialized")
-        except Exception as e:
-            if ERROR_HANDLER_AVAILABLE and error_handler:
-                error_handler.handle_error(e, context="Initialize ML Analytics Tab", severity=ErrorSeverity.HIGH)
-            else:
-                print(f"⚠️ ML Analytics Tab initialization failed: {e}")
-                import traceback
-                traceback.print_exc()
-            # Create fallback message in tab
-            error_label = tk.Label(
-                self.ml_analytics_tab,
-                text=f"❌ ML Analytics Tab failed to load:\n{str(e)}\n\nPlease check console for details.",
-                font=('Segoe UI', 10),
-                fg='#CF222E',
-                bg='#FFFFFF',
-                justify=tk.LEFT,
-                padx=20, pady=20
-            )
-            error_label.pack(fill=tk.BOTH, expand=True)
-        
         # Initialize Settings Tab
         try:
             print("🔄 Initializing Settings Tab...")
@@ -903,6 +854,35 @@ class App:
             error_label = tk.Label(
                 self.settings_tab,
                 text=f"❌ Settings Tab failed to load:\n{str(e)}\n\nPlease check console for details.",
+                font=('Segoe UI', 10),
+                fg='#CF222E',
+                bg='#FFFFFF',
+                justify=tk.LEFT,
+                padx=20, pady=20
+            )
+            error_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize Dashboard Tab
+        try:
+            print("🔄 Initializing Dashboard Tab...")
+            self.dashboard = DashboardTab(
+                parent_frame=self.dashboard_tab,
+                config=self.config,
+                status_callback=self.update_status,
+                log_callback=self.append_log
+            )
+            print("✅ Dashboard Tab initialized")
+        except Exception as e:
+            if ERROR_HANDLER_AVAILABLE and error_handler:
+                error_handler.handle_error(e, context="Initialize Dashboard Tab", severity=ErrorSeverity.HIGH)
+            else:
+                print(f"⚠️ Dashboard Tab initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
+            # Create fallback message in tab
+            error_label = tk.Label(
+                self.dashboard_tab,
+                text=f"❌ Dashboard Tab failed to load:\n{str(e)}\n\nPlease check console for details.",
                 font=('Segoe UI', 10),
                 fg='#CF222E',
                 bg='#FFFFFF',
@@ -1166,16 +1146,8 @@ class App:
             print("Cleaning up resources...")
             if hasattr(self, 'spark_runner'):
                 self.spark_runner.cleanup()
-            if hasattr(self, 'hdfs_upload'):
-                # Add cleanup if HDFSUploadTab has cleanup method
-                pass
-            if hasattr(self, 'ai_generator'):
-                # Add cleanup if AICodeGeneratorTab has cleanup method
-                pass
-            if hasattr(self, 'perf_monitor'):
-                # Stop monitoring if active
-                if self.perf_monitor.monitoring:
-                    self.perf_monitor.stop_monitoring()
+            if hasattr(self, 'dashboard'):
+                self.dashboard.cleanup()
             # Ensure subprocess cleanup in backend
             try:
                 from spark_backend import cleanup_processes

@@ -11,19 +11,19 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            background-color: #f8f9fa; /* Màu nền sáng hơn một chút */
+            background-color: #f8f9fa;
             color: #212529;
             line-height: 1.6;
         }
 
         /* Sidebar Navigation */
         .sidebar {
-            width: 280px; /* Rộng hơn một chút */
+            width: 280px;
             position: fixed;
             top: 0;
             left: 0;
             height: 100%;
-            background: linear-gradient(to bottom, #343a40, #212529); /* Gradient cho sidebar */
+            background: linear-gradient(to bottom, #343a40, #212529);
             color: white;
             padding-top: 25px;
             overflow-y: auto;
@@ -62,6 +62,7 @@
             font-size: 1.1rem;
             font-weight: 500;
             transition: all 0.3s ease;
+            cursor: pointer;
         }
         .sidebar-nav a i {
             margin-right: 18px;
@@ -187,7 +188,7 @@
             margin-top: 20px;
         }
 
-        /* Thêm phần mô tả, giới thiệu */
+        /* Content Box */
         .content-box {
             background: #fff;
             padding: 30px;
@@ -202,7 +203,7 @@
         }
         .content-box ul {
             padding-left: 20px;
-            list-style-type: '✔ '; /* Dùng emoji làm bullet */
+            list-style-type: '✔ ';
         }
         .content-box li {
             margin-bottom: 10px;
@@ -213,9 +214,9 @@
             color: #343a40;
         }
 
-        /* Hộp Insight (Quan trọng để ghi điểm) */
+        /* Insight Box */
         .insight-box {
-            background: #fff3cd; /* Màu vàng nhạt */
+            background: #fff3cd;
             border: 1px solid #ffeeba;
             border-left: 5px solid #ffc107;
             border-radius: 8px;
@@ -243,7 +244,7 @@
             padding-left: 10px;
         }
 
-        /* Kiến trúc hệ thống (Mới) */
+        /* Architecture Flow */
         .architecture-flow {
             display: flex;
             justify-content: space-around;
@@ -273,7 +274,42 @@
             color: #adb5bd;
             margin: 0 20px;
         }
-        /* Mobile responsive */
+
+        /* Process Steps */
+        .process-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .process-step {
+            border-top: 5px solid #007bff;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .process-step h3 {
+            margin-top: 0;
+            color: #007bff;
+            font-size: 1.3rem;
+        }
+        .process-step ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+        .process-step li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+        .process-step code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #d63384;
+            font-family: monospace;
+        }
+
+        /* Responsive */
         @media (max-width: 992px) {
             .architecture-flow {
                 flex-direction: column;
@@ -281,6 +317,21 @@
             .flow-arrow {
                 transform: rotate(90deg);
                 margin: 20px 0;
+            }
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding-top: 0;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+            .page-header h1 {
+                font-size: 2rem;
             }
         }
     </style>
@@ -306,6 +357,7 @@
 
     <div class="main-content">
 
+        <!-- Page 1: Overview -->
         <div id="page-overview" class="page-content active">
             <div class="page-header">
                 <h1>Giới thiệu Đề tài</h1>
@@ -365,6 +417,7 @@
             </div>
         </div>
 
+        <!-- Page 2: Dashboard -->
         <div id="page-dashboard" class="page-content">
             <div class="page-header">
                 <h1>Dashboard Tổng quan</h1>
@@ -376,7 +429,8 @@
                     <i class="fas fa-dollar-sign"></i>
                     <div class="stat-card-info">
                         <h3>Tổng Doanh Thu</h3>
-                        <p id="total-revenue">$...</p> </div>
+                        <p id="total-revenue">$...</p>
+                    </div>
                 </div>
                 <div class="stat-card">
                     <i class="fas fa-file-invoice"></i>
@@ -389,13 +443,15 @@
                     <i class="fas fa-shopping-cart"></i>
                     <div class="stat-card-info">
                         <h3>Giá trị TB / Đơn</h3>
-                        <p id="avg-order-value">$...</p> </div>
+                        <p id="avg-order-value">$...</p>
+                    </div>
                 </div>
                 <div class="stat-card">
                     <i class="fas fa-brain"></i>
                     <div class="stat-card-info">
                         <h3>Best Model (R²)</h3>
-                        <p id="best-model-r2">...</p> </div>
+                        <p id="best-model-r2">...</p>
+                    </div>
                 </div>
             </div>
 
@@ -407,6 +463,7 @@
             </div>
         </div>
 
+        <!-- Page 3: Science Data -->
         <div id="page-science" class="page-content">
             <div class="page-header">
                 <h1>📊 Dữ liệu</h1>
@@ -416,7 +473,6 @@
             <div class="chart-container">
                 <h2>📈 Tổng Hợp Kết Quả Phân Tích</h2>
                 <div id="science-data" style="overflow-x: auto;">
-                    <!-- Dữ liệu khoa học sẽ được hiển thị ở đây -->
                     <p style="color:#999; text-align:center; padding:20px;">⏳ Đang tải dữ liệu...</p>
                 </div>
             </div>
@@ -433,6 +489,7 @@
             </div>
         </div>
 
+        <!-- Page 4: Process -->
         <div id="page-process" class="page-content">
             <div class="page-header">
                 <h1>Quy trình Xử lý & Phân tích</h1>
@@ -486,6 +543,7 @@
             </div>
         </div>
 
+        <!-- Page 5: Customers -->
         <div id="page-customers" class="page-content">
             <div class="page-header">
                 <h1>Phân cụm Khách hàng (K-Means)</h1>
@@ -514,6 +572,7 @@
             </div>
         </div>
 
+        <!-- Page 6: Forecast -->
         <div id="page-forecast" class="page-content">
             <div class="page-header">
                 <h1>Dự đoán Doanh thu (Regression)</h1>
@@ -536,6 +595,7 @@
             </div>
         </div>
 
+        <!-- Page 7: Products -->
         <div id="page-products" class="page-content">
             <div class="page-header">
                 <h1>Phân loại Sản phẩm (Bisecting K-Means)</h1>
@@ -561,6 +621,7 @@
             </div>
         </div>
 
+        <!-- Page 8: Advanced -->
         <div id="page-advanced" class="page-content">
             <div class="page-header">
                 <h1>Phân tích Nâng cao</h1>
@@ -594,8 +655,7 @@
     <script>
         // ==================== CONFIGURATION ====================
         const CONFIG = {
-            dataFile: 'tmp/ml_analysis_summary.json',  // Đường dẫn tương đối
-            imageFile: 'tmp/ml_analysis_results.png',
+            dataFile: 'tmp/ml_analysis_summary.json',
             maxRetries: 5,
             retryDelay: 2000
         };
@@ -605,17 +665,14 @@
 
         // ==================== PAGE NAVIGATION ====================
         function showPage(pageId, element) {
-            // Ẩn tất cả các trang
             var pages = document.querySelectorAll('.page-content');
             pages.forEach(function(page) {
                 page.classList.remove('active');
             });
 
-            // Hiển thị trang được chọn
             var activePage = document.getElementById(pageId);
             activePage.classList.add('active');
 
-            // Cập nhật trạng thái 'active' cho link sidebar
             var links = document.querySelectorAll('.sidebar-nav a');
             links.forEach(function(link) {
                 link.classList.remove('active');
@@ -665,31 +722,29 @@
         function populateDashboard(data) {
             console.log('[INFO] Cập nhật dashboard với dữ liệu...');
             
-            // Cập nhật Stat Cards
             const totalRevenue = (data.total_revenue || 0).toLocaleString('vi-VN', {maximumFractionDigits: 0});
             const totalTransactions = (data.total_records || 0).toLocaleString();
             const avgOrderValue = (data.avg_order_value || 0).toLocaleString('vi-VN', {maximumFractionDigits: 2});
             const bestModelR2 = (data.best_model_r2 || 'N/A').toString();
-                // Hiển thị chi tiết dữ liệu JSON
-                const detailsEl = document.getElementById('json-details');
-                if (detailsEl) {
-                    let html = `<h3 style='color:#007bff;'>Chi tiết kết quả phân tích</h3><table style='width:100%;border-collapse:collapse;'>`;
-                    html += `<tr><th style='text-align:left;'>Tổng doanh thu</th><td>${data.total_revenue?.toLocaleString('vi-VN')}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Tổng giao dịch</th><td>${data.total_records?.toLocaleString('vi-VN')}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Giá trị TB/Đơn</th><td>${data.avg_order_value?.toLocaleString('vi-VN', {maximumFractionDigits:2})}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Số quốc gia</th><td>${data.num_countries}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Số sản phẩm</th><td>${data.num_products}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Số khách hàng</th><td>${data.num_customers}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Best Model (R²)</th><td>${data.best_model} (${data.best_model_r2})</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Top quốc gia</th><td>${data.top_country} (${data.top_country_revenue?.toLocaleString('vi-VN')})</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Top sản phẩm</th><td>${data.top_product} (${data.top_product_revenue?.toLocaleString('vi-VN')})</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Ngày phân tích</th><td>${data.analysis_date}</td></tr>`;
-                    html += `<tr><th style='text-align:left;'>Trạng thái</th><td>${data.analysis_status}</td></tr>`;
-                    html += `</table>`;
-                    detailsEl.innerHTML = html;
-                }
             
-            // Populate stat cards
+            const detailsEl = document.getElementById('json-details');
+            if (detailsEl) {
+                let html = `<h3 style='color:#007bff;'>Chi tiết kết quả phân tích</h3><table style='width:100%;border-collapse:collapse;'>`;
+                html += `<tr><th style='text-align:left;'>Tổng doanh thu</th><td>${data.total_revenue?.toLocaleString('vi-VN')}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Tổng giao dịch</th><td>${data.total_records?.toLocaleString('vi-VN')}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Giá trị TB/Đơn</th><td>${data.avg_order_value?.toLocaleString('vi-VN', {maximumFractionDigits:2})}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Số quốc gia</th><td>${data.num_countries}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Số sản phẩm</th><td>${data.num_products}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Số khách hàng</th><td>${data.num_customers}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Best Model (R²)</th><td>${data.best_model} (${data.best_model_r2})</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Top quốc gia</th><td>${data.top_country} (${data.top_country_revenue?.toLocaleString('vi-VN')})</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Top sản phẩm</th><td>${data.top_product} (${data.top_product_revenue?.toLocaleString('vi-VN')})</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Ngày phân tích</th><td>${data.analysis_date}</td></tr>`;
+                html += `<tr><th style='text-align:left;'>Trạng thái</th><td>${data.analysis_status}</td></tr>`;
+                html += `</table>`;
+                detailsEl.innerHTML = html;
+            }
+            
             const totalRevenueEl = document.getElementById('total-revenue');
             if (totalRevenueEl) {
                 totalRevenueEl.innerText = '$' + totalRevenue;
@@ -714,7 +769,6 @@
                 console.log('[OK] Cập nhật: Best Model R²');
             }
 
-            // Hiển thị tab "Dữ liệu Khoa học"
             displayScienceData(data);
         }
 
@@ -746,7 +800,7 @@
                 ['📍 Best Model R²', data.best_model_r2?.toFixed(4), 'Độ chính xác mô hình tốt nhất'],
                 ['🥇 Top Quốc Gia', data.top_country, 'Quốc gia có doanh thu cao nhất'],
                 ['💵 Top Country Revenue', data.top_country_revenue?.toLocaleString('vi-VN', {maximumFractionDigits:0}), 'Doanh thu quốc gia cao nhất'],
-                ['🏷️  Top Sản Phẩm', data.top_product, 'Sản phẩm bán chạy nhất'],
+                ['🏷️ Top Sản Phẩm', data.top_product, 'Sản phẩm bán chạy nhất'],
                 ['💵 Top Product Revenue', data.top_product_revenue?.toLocaleString('vi-VN', {maximumFractionDigits:0}), 'Doanh thu sản phẩm cao nhất'],
                 ['📅 Ngày Phân Tích', data.analysis_date, 'Thời điểm chạy phân tích'],
                 ['✅ Trạng Thái', data.analysis_status, 'Trạng thái phân tích']
@@ -759,7 +813,6 @@
 
             html += `</tbody></table>`;
 
-            // Thêm phần Customer Segments
             if (data.customer_segments) {
                 html += `<h3 style='color:#007bff; margin-top:30px;'>👥 Phân Khúc Khách Hàng</h3><table style='width:100%;border-collapse:collapse;'>`;
                 html += `<tr><th style='padding:10px;border:1px solid #dee2e6;text-align:left;background:#e6f2ff;'>Khúc</th><th style='padding:10px;border:1px solid #dee2e6;background:#e6f2ff;'>Số Lượng</th><th style='padding:10px;border:1px solid #dee2e6;background:#e6f2ff;'>Tỷ Lệ</th></tr>`;
@@ -786,11 +839,9 @@
         document.addEventListener("DOMContentLoaded", function() {
             console.log('[INFO] ========== Dashboard Initialized ==========');
             
-            // Mặc định hiển thị trang đầu tiên
             document.getElementById('page-overview').classList.add('active');
             document.querySelector('.sidebar-nav a').classList.add('active');
 
-            // Tải dữ liệu từ Spark (với retry tự động)
             console.log('[INFO] Bắt đầu tải dữ liệu với auto-retry...');
             loadDataWithRetry();
 
