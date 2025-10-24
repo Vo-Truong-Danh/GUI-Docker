@@ -265,10 +265,10 @@ class HDFSUploadTabV4Clean:
         canvas.bind('<Enter>', _bind_to_mousewheel)
         canvas.bind('<Leave>', _unbind_from_mousewheel)
         
-        # Three column layout - Left 25%, Middle 40%, Right 35%
+        # Three column layout - Left 25%, Middle 35%, Right 40%
         scroll_frame.grid_columnconfigure(0, weight=25, minsize=350)  # Upload controls
-        scroll_frame.grid_columnconfigure(1, weight=40, minsize=400)  # HDFS File Manager
-        scroll_frame.grid_columnconfigure(2, weight=35, minsize=350)  # Upload Log
+        scroll_frame.grid_columnconfigure(1, weight=35, minsize=400)  # Upload Log
+        scroll_frame.grid_columnconfigure(2, weight=40, minsize=450)  # HDFS File Manager + Selected Files
         scroll_frame.grid_rowconfigure(0, weight=1)
         
         left_col = tk.Frame(scroll_frame, bg='#F6F8FA')
@@ -472,147 +472,10 @@ class HDFSUploadTabV4Clean:
         self.status_badge = StatusBadge(status_content, "Ready", 'neutral')
         self.status_badge.pack(anchor='w')
         
-        # ===== MIDDLE COLUMN (HDFS File Manager) =====
-        
-        # HDFS File Manager Card
-        hdfs_card = SectionCard(middle_col, title="🗂️ HDFS File Manager")
-        hdfs_card.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
-        
-        hdfs_content = hdfs_card.get_content()
-        
-        # HDFS toolbar
-        hdfs_toolbar = tk.Frame(hdfs_content, bg='#FFFFFF', height=40)
-        hdfs_toolbar.pack(fill=tk.X, side=tk.TOP, pady=(0, 8))
-        hdfs_toolbar.pack_propagate(False)
-        
-        # Refresh button
-        refresh_btn = tk.Button(
-            hdfs_toolbar,
-            text="🔄 Refresh",
-            command=self.refresh_hdfs_files,
-            bg='#F6F8FA',
-            fg='#24292F',
-            font=('Segoe UI', 8),
-            relief='flat',
-            bd=0,
-            padx=12,
-            pady=6,
-            cursor='hand2'
-        )
-        refresh_btn.pack(side=tk.LEFT, padx=(0, 8))
-        
-        # Delete selected button
-        self.delete_btn = tk.Button(
-            hdfs_toolbar,
-            text="🗑️ Delete Selected",
-            command=self.delete_selected_hdfs_files,
-            bg='#D73A49',
-            fg='#FFFFFF',
-            font=('Segoe UI', 8, 'bold'),
-            relief='flat',
-            bd=0,
-            padx=12,
-            pady=6,
-            cursor='hand2',
-            state='disabled'
-        )
-        self.delete_btn.pack(side=tk.LEFT, padx=(0, 8))
-        
-        # HDFS path display
-        self.hdfs_path_var = tk.StringVar(value="/input")
-        path_label = tk.Label(
-            hdfs_toolbar,
-            text="Path:",
-            bg='#FFFFFF',
-            fg='#6E7781',
-            font=('Segoe UI', 8)
-        )
-        path_label.pack(side=tk.LEFT, padx=(20, 4))
-        
-        path_entry = tk.Entry(
-            hdfs_toolbar,
-            textvariable=self.hdfs_path_var,
-            bg='#F6F8FA',
-            fg='#24292F',
-            font=('Consolas', 8),
-            relief='flat',
-            bd=1,
-            width=25
-        )
-        path_entry.pack(side=tk.LEFT, padx=(0, 8))
-        
-        # Go button
-        go_btn = tk.Button(
-            hdfs_toolbar,
-            text="Go",
-            command=self.browse_hdfs_path,
-            bg='#0969DA',
-            fg='#FFFFFF',
-            font=('Segoe UI', 8),
-            relief='flat',
-            bd=0,
-            padx=8,
-            pady=6,
-            cursor='hand2'
-        )
-        go_btn.pack(side=tk.LEFT)
-        
-        # HDFS file list with checkboxes
-        hdfs_list_frame = tk.Frame(hdfs_content, bg='#FFFFFF')
-        hdfs_list_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Treeview for HDFS files
-        columns = ('select', 'name', 'size', 'date', 'type')
-        self.hdfs_tree = ttk.Treeview(
-            hdfs_list_frame,
-            columns=columns,
-            show='headings',
-            height=8
-        )
-        
-        # Configure columns
-        self.hdfs_tree.heading('select', text='☑')
-        self.hdfs_tree.heading('name', text='File Name')
-        self.hdfs_tree.heading('size', text='Size')
-        self.hdfs_tree.heading('date', text='Modified')
-        self.hdfs_tree.heading('type', text='Type')
-        
-        self.hdfs_tree.column('select', width=30, minwidth=30)
-        self.hdfs_tree.column('name', width=200, minwidth=150)
-        self.hdfs_tree.column('size', width=80, minwidth=60)
-        self.hdfs_tree.column('date', width=100, minwidth=80)
-        self.hdfs_tree.column('type', width=60, minwidth=50)
-        
-        # Scrollbar for treeview
-        hdfs_scrollbar = ttk.Scrollbar(hdfs_list_frame, orient='vertical', command=self.hdfs_tree.yview)
-        self.hdfs_tree.configure(yscrollcommand=hdfs_scrollbar.set)
-        
-        self.hdfs_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        hdfs_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Bind selection events
-        self.hdfs_tree.bind('<Button-1>', self.on_hdfs_tree_click)
-        self.hdfs_tree.bind('<Double-1>', self.on_hdfs_tree_double_click)
-        
-        # Empty state
-        self.hdfs_empty_label = tk.Label(
-            hdfs_list_frame,
-            text="Click 'Refresh' to load HDFS files",
-            bg='#FFFFFF',
-            fg='#6E7781',
-            font=('Segoe UI', 9),
-            pady=20
-        )
-        self.hdfs_empty_label.pack()
-        
-        # Initialize HDFS file list
-        self.hdfs_files = []
-        self.selected_hdfs_files = set()
-        
-        # ===== RIGHT COLUMN (Upload Log) =====
+        # ===== MIDDLE COLUMN (Upload Log) =====
         
         # Upload Log Card
-        log_card = SectionCard(right_col, title="📝 Upload Log")
+        log_card = SectionCard(middle_col, title="📝 Upload Log")
         log_card.pack(fill=tk.BOTH, expand=True)
         
         log_content = log_card.get_content()
@@ -697,6 +560,216 @@ class HDFSUploadTabV4Clean:
         
         self.log("📤 HDFS Upload Manager ready", 'info')
         self.log(f"📁 Config file: {os.path.abspath('spark_runner_config.json')}", 'info')
+        
+        # ===== RIGHT COLUMN (HDFS File Manager + Selected Files) =====
+        
+        # Configure right column for horizontal split
+        right_col.grid_rowconfigure(0, weight=1)  # HDFS File Manager
+        right_col.grid_rowconfigure(1, weight=1)  # Selected Files
+        right_col.grid_columnconfigure(0, weight=1)
+        
+        # HDFS File Manager Card (Top half)
+        hdfs_card = SectionCard(right_col, title="🗂️ HDFS File Manager")
+        hdfs_card.grid(row=0, column=0, sticky='nsew', pady=(0, 6))
+        
+        hdfs_content = hdfs_card.get_content()
+        
+        # HDFS toolbar
+        hdfs_toolbar = tk.Frame(hdfs_content, bg='#FFFFFF', height=40)
+        hdfs_toolbar.pack(fill=tk.X, side=tk.TOP, pady=(0, 8))
+        hdfs_toolbar.pack_propagate(False)
+        
+        # Refresh button
+        refresh_btn = tk.Button(
+            hdfs_toolbar,
+            text="🔄 Refresh",
+            command=self.refresh_hdfs_files,
+            bg='#F6F8FA',
+            fg='#24292F',
+            font=('Segoe UI', 8),
+            relief='flat',
+            bd=0,
+            padx=12,
+            pady=6,
+            cursor='hand2'
+        )
+        refresh_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # Delete selected button
+        self.delete_btn = tk.Button(
+            hdfs_toolbar,
+            text="🗑️ Delete Selected",
+            command=self.delete_selected_hdfs_files,
+            bg='#D73A49',
+            fg='#FFFFFF',
+            font=('Segoe UI', 8, 'bold'),
+            relief='flat',
+            bd=0,
+            padx=12,
+            pady=6,
+            cursor='hand2',
+            state='disabled'
+        )
+        self.delete_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # HDFS path display
+        self.hdfs_path_var = tk.StringVar(value="/input")
+        path_label = tk.Label(
+            hdfs_toolbar,
+            text="Path:",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 8)
+        )
+        path_label.pack(side=tk.LEFT, padx=(20, 4))
+        
+        path_entry = tk.Entry(
+            hdfs_toolbar,
+            textvariable=self.hdfs_path_var,
+            bg='#F6F8FA',
+            fg='#24292F',
+            font=('Consolas', 8),
+            relief='flat',
+            bd=1,
+            width=20
+        )
+        path_entry.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # Go button
+        go_btn = tk.Button(
+            hdfs_toolbar,
+            text="Go",
+            command=self.browse_hdfs_path,
+            bg='#0969DA',
+            fg='#FFFFFF',
+            font=('Segoe UI', 8),
+            relief='flat',
+            bd=0,
+            padx=8,
+            pady=6,
+            cursor='hand2'
+        )
+        go_btn.pack(side=tk.LEFT)
+        
+        # HDFS file list with checkboxes
+        hdfs_list_frame = tk.Frame(hdfs_content, bg='#FFFFFF')
+        hdfs_list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Treeview for HDFS files
+        columns = ('select', 'name', 'size', 'date', 'type')
+        self.hdfs_tree = ttk.Treeview(
+            hdfs_list_frame,
+            columns=columns,
+            show='headings',
+            height=6
+        )
+        
+        # Configure columns
+        self.hdfs_tree.heading('select', text='☑')
+        self.hdfs_tree.heading('name', text='File Name')
+        self.hdfs_tree.heading('size', text='Size')
+        self.hdfs_tree.heading('date', text='Modified')
+        self.hdfs_tree.heading('type', text='Type')
+        
+        self.hdfs_tree.column('select', width=30, minwidth=30)
+        self.hdfs_tree.column('name', width=150, minwidth=120)
+        self.hdfs_tree.column('size', width=60, minwidth=50)
+        self.hdfs_tree.column('date', width=80, minwidth=70)
+        self.hdfs_tree.column('type', width=50, minwidth=40)
+        
+        # Scrollbar for treeview
+        hdfs_scrollbar = ttk.Scrollbar(hdfs_list_frame, orient='vertical', command=self.hdfs_tree.yview)
+        self.hdfs_tree.configure(yscrollcommand=hdfs_scrollbar.set)
+        
+        self.hdfs_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        hdfs_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind selection events
+        self.hdfs_tree.bind('<Button-1>', self.on_hdfs_tree_click)
+        self.hdfs_tree.bind('<Double-1>', self.on_hdfs_tree_double_click)
+        
+        # Empty state
+        self.hdfs_empty_label = tk.Label(
+            hdfs_list_frame,
+            text="Click 'Refresh' to load HDFS files",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 9),
+            pady=20
+        )
+        self.hdfs_empty_label.pack()
+        
+        # Initialize HDFS file list
+        self.hdfs_files = []
+        self.selected_hdfs_files = set()
+        
+        # Selected Files Card (Bottom half)
+        selected_card = SectionCard(right_col, title="📋 Selected Files")
+        selected_card.grid(row=1, column=0, sticky='nsew', pady=(6, 0))
+        
+        selected_content = selected_card.get_content()
+        
+        # Selected files toolbar
+        selected_toolbar = tk.Frame(selected_content, bg='#FFFFFF', height=30)
+        selected_toolbar.pack(fill=tk.X, side=tk.TOP, pady=(0, 8))
+        selected_toolbar.pack_propagate(False)
+        
+        # Clear selected button
+        clear_selected_btn = tk.Button(
+            selected_toolbar,
+            text="🗑️ Clear All",
+            command=self.clear_selected_files,
+            bg='#F6F8FA',
+            fg='#24292F',
+            font=('Segoe UI', 8),
+            relief='flat',
+            bd=0,
+            padx=8,
+            pady=4,
+            cursor='hand2'
+        )
+        clear_selected_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # Selected files count
+        self.selected_count_label = tk.Label(
+            selected_toolbar,
+            text="0 files selected",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 8)
+        )
+        self.selected_count_label.pack(side=tk.RIGHT, padx=(8, 0))
+        
+        # Selected files list
+        selected_list_frame = tk.Frame(selected_content, bg='#FFFFFF')
+        selected_list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Scrollable file list
+        selected_canvas = tk.Canvas(selected_list_frame, bg='#FFFFFF', highlightthickness=0, height=120)
+        selected_scrollbar = tk.Scrollbar(selected_list_frame, orient='vertical', command=selected_canvas.yview)
+        
+        self.selected_files_frame = tk.Frame(selected_canvas, bg='#FFFFFF')
+        self.selected_files_frame.bind(
+            '<Configure>',
+            lambda e: selected_canvas.configure(scrollregion=selected_canvas.bbox('all'))
+        )
+        
+        selected_canvas.create_window((0, 0), window=self.selected_files_frame, anchor='nw')
+        selected_canvas.configure(yscrollcommand=selected_scrollbar.set)
+        
+        selected_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Empty state for selected files
+        self.selected_empty_label = tk.Label(
+            self.selected_files_frame,
+            text="No files selected",
+            bg='#FFFFFF',
+            fg='#6E7781',
+            font=('Segoe UI', 9),
+            pady=20
+        )
+        self.selected_empty_label.pack()
     
     def log(self, message, tag='info'):
         """Add message to log with timestamp"""
@@ -817,6 +890,102 @@ class HDFSUploadTabV4Clean:
             remove_btn.bind('<Enter>', lambda e, w=remove_btn: w.config(bg='#FFE4E6'))
             remove_btn.bind('<Leave>', lambda e, w=remove_btn: w.config(bg='#F6F8FA'))
     
+    def update_selected_files_display(self):
+        """Update the selected files display in right column"""
+        # Clear current display
+        for widget in self.selected_files_frame.winfo_children():
+            widget.destroy()
+        
+        # Update count
+        count = len(self.selected_files)
+        self.selected_count_label.config(text=f"{count} file{'s' if count != 1 else ''} selected")
+        
+        if count == 0:
+            self.selected_empty_label = tk.Label(
+                self.selected_files_frame,
+                text="No files selected",
+                bg='#FFFFFF',
+                fg='#6E7781',
+                font=('Segoe UI', 9),
+                pady=20
+            )
+            self.selected_empty_label.pack()
+            return
+        
+        # Show selected files with details
+        for i, filepath in enumerate(self.selected_files):
+            file_frame = tk.Frame(self.selected_files_frame, bg='#F6F8FA', relief=tk.SOLID, 
+                                borderwidth=1, highlightthickness=0)
+            file_frame.pack(fill=tk.X, pady=(0, 3))
+            
+            # Get file info
+            file_path = Path(filepath)
+            file_size = file_path.stat().st_size if file_path.exists() else 0
+            size_str = self.format_file_size(file_size)
+            
+            # File icon and name
+            ext = file_path.suffix.lower()
+            icon = self.FILE_ICONS.get(ext, self.FILE_ICONS['default'])
+            
+            icon_label = tk.Label(
+                file_frame,
+                text=icon,
+                bg='#F6F8FA',
+                fg='#6E7781',
+                font=('Segoe UI', 10)
+            )
+            icon_label.pack(side=tk.LEFT, padx=(8, 4), pady=4)
+            
+            # File details
+            details_frame = tk.Frame(file_frame, bg='#F6F8FA')
+            details_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8), pady=4)
+            
+            # File name
+            name_label = tk.Label(
+                details_frame,
+                text=file_path.name,
+                bg='#F6F8FA',
+                fg='#24292F',
+                font=('Segoe UI', 8, 'bold'),
+                anchor='w'
+            )
+            name_label.pack(fill=tk.X)
+            
+            # File size and path
+            info_label = tk.Label(
+                details_frame,
+                text=f"{size_str} • {file_path.parent}",
+                bg='#F6F8FA',
+                fg='#6E7781',
+                font=('Segoe UI', 7),
+                anchor='w'
+            )
+            info_label.pack(fill=tk.X)
+    
+    def clear_selected_files(self):
+        """Clear all selected files"""
+        if not self.selected_files:
+            return
+        
+        count = len(self.selected_files)
+        self.selected_files.clear()
+        self.update_file_list()
+        self.update_selected_files_display()
+        self.log(f"🗑️ Cleared {count} file(s)", 'info')
+    
+    def format_file_size(self, size_bytes):
+        """Format file size in human readable format"""
+        if size_bytes == 0:
+            return "0 B"
+        
+        size_names = ["B", "KB", "MB", "GB", "TB"]
+        i = 0
+        while size_bytes >= 1024 and i < len(size_names) - 1:
+            size_bytes /= 1024.0
+            i += 1
+        
+        return f"{size_bytes:.1f} {size_names[i]}"
+    
     def add_files(self):
         """Add files to upload list"""
         self.log("📂 Opening file dialog...", 'info')
@@ -845,6 +1014,7 @@ class HDFSUploadTabV4Clean:
                 self.log(f"⚠️ Already added: {Path(file).name}", 'warning')
         
         self.update_file_list()
+        self.update_selected_files_display()
         self.log(f"✅ Total added: {added} file(s)", 'success')
     
     def add_folder(self):
@@ -869,6 +1039,7 @@ class HDFSUploadTabV4Clean:
                     count += 1
         
         self.update_file_list()
+        self.update_selected_files_display()
         self.log(f"✅ Total added: {count} file(s) from folder", 'success')
     
     def remove_file(self, filepath):
@@ -876,6 +1047,7 @@ class HDFSUploadTabV4Clean:
         if filepath in self.selected_files:
             self.selected_files.remove(filepath)
             self.update_file_list()
+            self.update_selected_files_display()
             self.log(f"🗑️ Removed: {Path(filepath).name}", 'warning')
     
     def clear_files(self):
@@ -887,6 +1059,7 @@ class HDFSUploadTabV4Clean:
         
         self.selected_files.clear()
         self.update_file_list()
+        self.update_selected_files_display()
         self.log(f"🗑️ Cleared {count} file(s)", 'warning')
     
     def save_config(self):
