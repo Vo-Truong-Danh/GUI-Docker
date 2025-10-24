@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Auto-Load Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #007bff;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .code {
+            background: #333;
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .stat-card {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            margin: 10px;
+            border-radius: 8px;
+            min-width: 200px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px;
+            margin: 5px 0;
+            background: #e8f4f8;
+            border-radius: 4px;
+        }
+        .checklist li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.done {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .flow {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Dashboard Auto-Load System</h1>
+            <p>Thay vì tải dữ liệu mẫu → Tự động tải dữ liệu THẬT từ Spark</p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Mục Đích Cập Nhật</h2>
+            <ul class="checklist">
+                <li>Tự động tải JSON từ <code>/tmp/ml_analysis_summary.json</code></li>
+                <li>Tự động hiển thị hình ảnh từ <code>/tmp/ml_analysis_results.png</code></li>
+                <li>Auto-populate stat cards (Total Revenue, Avg Order Value, etc.)</li>
+                <li>Retry tự động nếu dữ liệu chưa sẵn sàng</li>
+                <li>Graceful fallback khi chưa có dữ liệu (placeholder)</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📊 Stat Cards Demo</h2>
+            <p>Dashboard sẽ tự động hiển thị các giá trị này:</p>
+            <div>
+                <div class="stat-card">
+                    <div class="stat-label">💰 Total Revenue</div>
+                    <div class="stat-value" id="total-revenue">$21,416,076</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🛒 Avg Order Value</div>
+                    <div class="stat-value" id="avg-order-value">$26.84</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🧠 Best Model R²</div>
+                    <div class="stat-value" id="best-model-r2">0.824</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📈 Total Records</div>
+                    <div class="stat-value" id="total-records">797,885</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔄 Luồng Dữ Liệu (Data Flow)</h2>
+            <div class="flow">
+Spark Analysis (Docker)<br>
+        ↓ (generates)<br>
+/tmp/ml_analysis_summary.json<br>
+/tmp/ml_analysis_results.png<br>
+        ↓ (docker cp)<br>
+docker_results_extractor.py<br>
+        ↓ (copies to host)<br>
+Host /tmp/<br>
+        ↓ (fetch)<br>
+Browser: index2_1.html<br>
+        ↓ (auto-load)<br>
+Dashboard Populated ✓
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🛠️ Cập Nhật Chi Tiết</h2>
+            
+            <h3>1. JavaScript Auto-Load (Mới)</h3>
+            <div class="code">const CONFIG = {<br>
+    dataFile: '/tmp/ml_analysis_summary.json',<br>
+    imageFile: '/tmp/ml_analysis_results.png',<br>
+    maxRetries: 5,<br>
+    retryDelay: 2000<br>
+};<br>
+<br>
+loadDataWithRetry();  // Auto-load khi mở trang
+            </div>
+
+            <h3>2. Nhúng Hình Ảnh (Cập Nhật 6 trang)</h3>
+            <div class="code">
+<!-- Trước -->
+&lt;img src="images/ml_result_1.png"&gt;<br>
+<br>
+<!-- Sau -->
+&lt;img src="/tmp/ml_analysis_results.png" onerror="..."&gt;
+            </div>
+
+            <h3>3. Populate Stat Cards (Tự động)</h3>
+            <div class="code">
+function populateDashboard(data) {<br>
+    document.getElementById('total-revenue').innerText = '$' + data.total_revenue;<br>
+    document.getElementById('avg-order-value').innerText = '$' + data.avg_order_value;<br>
+    document.getElementById('best-model-r2').innerText = data.best_model_r2;<br>
+}
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>✅ Implementation Checklist</h2>
+            <ul class="checklist">
+                <li>index2_1.html - Thêm JavaScript auto-load</li>
+                <li>Cập nhật tất cả 6 img src → /tmp/</li>
+                <li>Thêm error handling (fallback placeholder)</li>
+                <li>Thêm retry logic (5 lần, delay 2s)</li>
+                <li>Console logging để debug</li>
+            </ul>
+            <br>
+            <p><span class="status done">✓ COMPLETED</span></p>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Cách Sử Dụng</h2>
+            <div class="flow">
+1. Spark Runner Tab → Chạy Spark Job<br>
+2. ML Analytics Tab → Click "Run Analysis"<br>
+3. Dashboard tự động mở<br>
+4. index2_1.html tự động tải dữ liệu từ /tmp/<br>
+5. Stat cards & charts populate tự động ✓
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 JSON Data Structure</h2>
+            <div class="code">
+{<br>
+    "total_records": 797885,<br>
+    "total_revenue": 21416076.50,<br>
+    "avg_order_value": 26.84,<br>
+    "num_countries": 38,<br>
+    "num_products": 4000,<br>
+    "best_model_r2": 0.824<br>
+}
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🐛 Troubleshooting</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="background: #f0f0f0;">
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Vấn đề</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nguyên nhân</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Giải pháp</th>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Placeholder hiển thị</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Spark chưa chạy</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Chạy Spark analysis</td>
+                </tr>
+                <tr style="background: #f9f9f9;">
+                    <td style="border: 1px solid #ddd; padding: 8px;">Stat cards hiển thị "..."</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">JSON file chưa tạo</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Click "Run Analysis"</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Hình ảnh không thấy</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">PNG file chưa copy</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Refresh browser (Ctrl+R)</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section" style="background: #d4edda; border-left-color: #28a745;">
+            <h2 style="color: #155724;">✨ Kết Quả Cuối Cùng</h2>
+            <p><strong>Trước:</strong> Dashboard hiển thị dữ liệu mẫu/placeholder 😐</p>
+            <p><strong>Sau:</strong> Dashboard tự động tải dữ liệu THẬT từ Spark và hiển thị! 🎉</p>
+            <ul class="checklist">
+                <li>Dữ liệu thật (actual data from Spark)</li>
+                <li>Auto-populated stat cards</li>
+                <li>Biểu đồ phân tích thực</li>
+                <li>7 trang đầy đủ content</li>
+                <li>Responsive, beautiful UI</li>
+            </ul>
+        </div>
+
+        <hr style="margin: 30px 0; border: none; border-top: 2px solid #ddd;">
+        
+        <div style="text-align: center; color: #666; font-size: 12px;">
+            📄 File: DASHBOARD_AUTO_LOAD_TEST.html | 📦 Database: GUI-Docker<br>
+            Phiên bản: 1.0 | Ngày: 24/10/2025
+        </div>
+    </div>
+
+    <script>
+        // Demo: Auto-update stat cards
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[INFO] Dashboard Auto-Load Test loaded');
+            
+            // Simulate loading data
+            const sampleData = {
+                total_records: 797885,
+                total_revenue: 21416076.50,
+                avg_order_value: 26.84,
+                best_model_r2: 0.824
+            };
+            
+            // Populate demo cards
+            document.getElementById('total-revenue').textContent = '$' + sampleData.total_revenue.toLocaleString('vi-VN', {maximumFractionDigits: 0});
+            document.getElementById('avg-order-value').textContent = '$' + sampleData.avg_order_value.toLocaleString('vi-VN', {maximumFractionDigits: 2});
+            document.getElementById('best-model-r2').textContent = sampleData.best_model_r2.toFixed(3);
+            document.getElementById('total-records').textContent = sampleData.total_records.toLocaleString();
+            
+            console.log('[SUCCESS] Demo stat cards populated');
+        });
+    </script>
+</body>
+</html>

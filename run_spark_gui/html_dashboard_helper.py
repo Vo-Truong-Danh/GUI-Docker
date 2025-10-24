@@ -20,12 +20,24 @@ class HTMLDashboardHelper:
         Initialize dashboard helper
         
         Args:
-            dashboard_path (str): Path to ml_analytics_dashboard.html
+            dashboard_path (str): Path to dashboard HTML file
         """
         if dashboard_path is None:
-            # Auto-detect dashboard path
+            # Auto-detect dashboard path - try index2_1.html first, then ml_analytics_dashboard.html
             script_dir = Path(__file__).parent.parent
-            dashboard_path = script_dir / 'ml_analytics_dashboard.html'
+            
+            # Try new dashboard first
+            dashboard_path_new = script_dir / 'index2_1.html'
+            dashboard_path_old = script_dir / 'ml_analytics_dashboard.html'
+            
+            if dashboard_path_new.exists():
+                dashboard_path = dashboard_path_new
+                print("[OK] Using: index2_1.html")
+            elif dashboard_path_old.exists():
+                dashboard_path = dashboard_path_old
+                print("[OK] Using: ml_analytics_dashboard.html")
+            else:
+                raise FileNotFoundError(f"Dashboard not found: {script_dir}")
         
         self.dashboard_path = Path(dashboard_path)
         self.data_path = Path('/tmp/ml_analysis_summary.json')

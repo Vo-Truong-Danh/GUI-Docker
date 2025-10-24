@@ -32,10 +32,19 @@ def extract_results_from_docker(container_name, output_dir="/tmp/"):
     results['messages'].append(f"✅ Output directory: {output_dir}")
     
     # Files cần copy từ container
+    # Bao gồm: 1 JSON file + 6 PNG files từ code7.py
     files_to_extract = [
         '/tmp/ml_analysis_summary.json',
-        '/tmp/ml_analysis_results.png'
+        '/tmp/ml_analysis_results.png',          # Legacy (old single image)
+        '/tmp/ml_result_1_customer_clustering.png',
+        '/tmp/ml_result_2_regression_analysis.png',
+        '/tmp/ml_result_3_product_clustering.png',
+        '/tmp/ml_result_4_comprehensive_dashboard.png',
+        '/tmp/ml_result_5_advanced_analytics.png',
+        '/tmp/ml_result_6_trends_comparison.png'
     ]
+    
+    png_files = []  # List tất cả PNG files đã copy
     
     for container_file in files_to_extract:
         filename = os.path.basename(container_file)
@@ -56,19 +65,27 @@ def extract_results_from_docker(container_name, output_dir="/tmp/"):
                     if 'json' in filename:
                         results['json'] = host_file
                     elif 'png' in filename:
-                        results['png'] = host_file
+                        png_files.append(host_file)
+                        if 'ml_analysis_results.png' in filename:
+                            results['png'] = host_file  # Legacy fallback
                 else:
                     results['messages'].append(f"⚠️ File copied but not found: {host_file}")
             else:
-                results['messages'].append(f"❌ Failed to copy {filename}: {result.stderr}")
+                # File không tồn tại - bỏ qua (có thể là file không cần thiết)
+                pass
         
         except subprocess.TimeoutExpired:
             results['messages'].append(f"⏱️ Timeout copying {filename}")
         except Exception as e:
             results['messages'].append(f"❌ Error copying {filename}: {e}")
     
-    # Xác định thành công
-    results['success'] = (results['json'] is not None or results['png'] is not None)
+    # Xác định thành công (có JSON + ít nhất 1 PNG)
+    results['success'] = (results['json'] is not None and len(png_files) > 0)
+    
+    # Log số lượng PNG files đã copy
+    results['messages'].append(f"📊 Total PNG files copied: {len(png_files)}")
+    if len(png_files) > 0:
+        results['messages'].append(f"   Files: {', '.join([os.path.basename(f) for f in png_files])}")
     
     return results
 

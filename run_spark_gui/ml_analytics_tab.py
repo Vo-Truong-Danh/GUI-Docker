@@ -238,9 +238,14 @@ class MLAnalyticsTab:
         
         # THEN: Open dashboard
         try:
-            # Find dashboard HTML file
+            # Find dashboard HTML file - prefer index2_1.html (new) over ml_analytics_dashboard.html (old)
             current_dir = Path(__file__).parent.parent
-            dashboard_path = current_dir / 'ml_analytics_dashboard.html'
+            
+            # Try new dashboard first
+            dashboard_path = current_dir / 'index2_1.html'
+            if not dashboard_path.exists():
+                # Fallback to old dashboard
+                dashboard_path = current_dir / 'ml_analytics_dashboard.html'
             
             if not dashboard_path.exists():
                 messagebox.showerror("Error", 
