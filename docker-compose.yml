@@ -11,7 +11,10 @@ services:
       - bigdata_network
 
   spark-worker:
-    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-worker
+    image: gui-docker/spark-worker:3.3.0
     container_name: spark-worker
     restart: unless-stopped
     depends_on:
@@ -20,6 +23,8 @@ services:
       - SPARK_MASTER=spark://spark-master:7077
     ports:
       - "8082:8081"
+    volumes:
+      - pip-cache:/root/.cache/pip
     networks:
       - bigdata_network
 
@@ -57,3 +62,4 @@ networks:
 volumes:
   hadoop_namenode:
   hadoop_datanode:
+  pip-cache:

@@ -400,7 +400,7 @@ class DashboardTab:
                     container_name = name_result.stdout.strip()
 
                     # Kiểm tra file PNG/JSON trong container
-                    check_cmd = 'find /tmp \( -name "ml_result_*.png" -o -name "ml_analysis_summary.json" -o -name "customer_rfm_3d.json" \) -type f'
+                    check_cmd = 'find /tmp \( -name "ml_result_*.png" -o -name "ml_analysis_summary.json" -o -name "customer_rfm_3d.json" -o -name "product_clusters_3d.json" \) -type f'
                     result = subprocess.run([
                         "docker", "exec", container_id, "sh", "-c", check_cmd
                     ], capture_output=True, text=True, timeout=8)
@@ -443,7 +443,7 @@ class DashboardTab:
             elif copied_count > 0:
                 self.append_log(f"✅ Đã copy {copied_count} files (PNG + JSON) thành công!", "success")
                 self.append_log(f"📍 Vị trí: {tmp_dir}", "success")
-                self.append_log(f"📄 Bao gồm: ml_analysis_summary.json, customer_rfm_3d.json, ml_result_*.png", "info")
+                self.append_log(f"📄 Bao gồm: ml_analysis_summary.json, customer_rfm_3d.json, product_clusters_3d.json, ml_result_*.png", "info")
                 self.append_log(f"🔄 Reload browser để xem dữ liệu (hoặc nhấn F5)", "info")
             else:
                 self.append_log(f"❌ Không copy được files nào. Kiểm tra quyền Docker", "error")

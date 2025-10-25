@@ -1,0 +1,31 @@
+# syntax = docker/dockerfile:1.4
+FROM bde2020/spark-worker:3.3.0-hadoop3.3
+
+# Set workdir
+WORKDIR /opt
+
+# Copy requirements file (if missing, build will continue but no extra packages)
+COPY requirements.txt /opt/requirements.txt
+
+# Set pip mirror (Tsinghua) and increase timeout
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_DEFAULT_TIMEOUT=120
+
+# Use BuildKit cache for pip wheels. Install system deps, add pip conf and install Python packages from requirements.txt if present.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    apt-get update && apt-get install -y --no-install-recommends build-essential gcc libjpeg-dev zlib1g-dev libpng-dev ca-certificates && \
+    mkdir -p /etc && printf "[global]\nindex-url = ${PIP_INDEX_URL}\ntimeout = ${PIP_DEFAULT_TIMEOUT}\n" > /etc/pip.conf && \
+    if [ -f /opt/requirements.txt ] && [ -s /opt/requirements.txt ]; then \
+        python3 -m pip install --upgrade pip setuptools wheel && \
+        python3 -m pip install --no-cache-dir -r /opt/requirements.txt --prefer-binary --timeout ${PIP_DEFAULT_TIMEOUT}; \
+    else \
+        echo "No requirements.txt found or empty - skipping pip install"; \
+    fi && \
+    apt-get purge -y build-essential gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* /root/.cache/apt && \
+    # leave pip cache in /root/.cache/pip (mounted to pip-cache volume) for future builds
+    true
+
+# Default workdir (no change to image behavior)
+WORKDIR /opt
+
+# Keep entrypoint/command from base image
