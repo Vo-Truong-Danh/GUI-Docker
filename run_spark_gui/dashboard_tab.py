@@ -379,8 +379,9 @@ class DashboardTab:
                     )
                     container_name = name_result.stdout.strip()
                     
-                    # Check if images exist in container using find command (more reliable)
-                    check_cmd = 'find /tmp -name "ml_result_*.png" -type f'
+                    # Check if images AND JSON exist in container using find command (more reliable)
+                    # Find both PNG files AND JSON file
+                    check_cmd = 'find /tmp \\( -name "ml_result_*.png" -o -name "ml_analysis_summary.json" \\) -type f'
                     result = subprocess.run(
                         ["docker", "exec", container_id, "sh", "-c", check_cmd],
                         capture_output=True,
@@ -389,12 +390,14 @@ class DashboardTab:
                     )
                     
                     found_files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+                    png_files = [f for f in found_files if f.endswith('.png')]
+                    json_files = [f for f in found_files if f.endswith('.json')]
                     
                     if found_files:
                         container_found = True
-                        self.append_log(f"🐳 Tìm thấy {len(found_files)} ảnh trong container: {container_name}", "success")
+                        self.append_log(f"🐳 Tìm thấy {len(png_files)} ảnh + {len(json_files)} JSON trong container: {container_name}", "success")
                         
-                        # Copy each file individually
+                        # Copy each file individually (both PNG and JSON)
                         for src_path in found_files:
                             try:
                                 filename = os.path.basename(src_path)
@@ -424,14 +427,15 @@ class DashboardTab:
                     continue
             
             if not container_found:
-                self.append_log("⚠ Không tìm thấy ảnh trong bất kỳ container nào", "warning")
+                self.append_log("⚠ Không tìm thấy files (PNG + JSON) trong bất kỳ container nào", "warning")
                 self.append_log("💡 Hãy chạy code phân tích trong container trước", "info")
             elif copied_count > 0:
-                self.append_log(f"✅ Đã copy {copied_count} ảnh thành công!", "success")
+                self.append_log(f"✅ Đã copy {copied_count} files (PNG + JSON) thành công!", "success")
                 self.append_log(f"📍 Vị trí: {tmp_dir}", "success")
-                self.append_log(f"🔄 Reload browser để xem ảnh (hoặc nhấn F5)", "info")
+                self.append_log(f"📄 Bao gồm: ml_analysis_summary.json + ml_result_*.png", "info")
+                self.append_log(f"🔄 Reload browser để xem dữ liệu (hoặc nhấn F5)", "info")
             else:
-                self.append_log(f"❌ Không copy được ảnh nào. Kiểm tra quyền Docker", "error")
+                self.append_log(f"❌ Không copy được files nào. Kiểm tra quyền Docker", "error")
             
         except Exception as e:
             self.append_log(f"❌ Lỗi copy ảnh: {str(e)}", "error")

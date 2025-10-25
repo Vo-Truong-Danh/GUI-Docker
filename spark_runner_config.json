@@ -6,27 +6,13 @@
   "hdfs_default_path": "/user/spark/data",
   "auto_extract_archives": true,
   "delete_archive_after_extract": true,
-  "compose_file": "D:/BaiTapSinhVien/TH BigData/docker-compose.yml",
+  "compose_file": "D:/BaiTapSinhVien/TH BigData/GUI-Docker/docker-compose.yml",
   "history": [
-    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code7.py",
-    "C:/Users/Pls/AppData/Local/Temp/temp_ml_analysis.py",
-    "D:/Downloads/code7.py",
-    "D:/Downloads/2001220573/2001220573.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/2001220573.py",
-    "D:/BaiTapSinhVien/TH BigData/KT2/2001220573/2001220573.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/bytebazaar_all_in_one_q4_q15.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum6.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum5.py",
-    "D:/BaiTapSinhVien/TH BigData/KT/2001220573/bytebazaar_pyspark_jobs_q4_q15_fixed/cum4.py"
+    "D:/BaiTapSinhVien/TH BigData/Tuan04/checkspammail.py",
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code7.py"
   ],
   "hdfs_path": "/input",
   "hdfs_port": "8020",
   "auto_extract": true,
-  "ai_code_generator": {
-    "last_input_file": "hdfs://namenode:9870/input/harrypotter.txt",
-    "last_output_path": "hdfs://namenode:9870/output"
-  },
-  "ai_api_key": "AIzaSyBAXWlXvoEgO36ZW7dQlxsq06y_5v_MEi8",
-  "ai_provider": "Gemini 2.5 Flash (Free)",
   "delete_after_extract": true
 }

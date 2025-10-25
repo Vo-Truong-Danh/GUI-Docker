@@ -101,7 +101,19 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [6/6] Verifying...
+echo [6/6] Copying tmp folder (images + JSON data)...
+if exist tmp (
+    if not exist dist\tmp (
+        mkdir dist\tmp
+    )
+    xcopy tmp dist\tmp /s /y /i
+    echo Copied: tmp folder with all ML analysis results ✓
+) else (
+    echo Info: tmp folder not found (will be created when running analysis)
+)
+
+echo.
+echo [7/7] Verifying...
 if exist dist\SparkRunnerGUI.exe (
     echo.
     echo ========================================
@@ -109,6 +121,7 @@ if exist dist\SparkRunnerGUI.exe (
     echo ========================================
     echo.
     echo Executable: dist\SparkRunnerGUI.exe
+    echo Data Folder: dist\tmp (with ML analysis results)
     echo.
     for %%A in (dist\SparkRunnerGUI.exe) do echo Size: %%~zA bytes
     echo.

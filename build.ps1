@@ -135,6 +135,14 @@ Copy-Item "README.md" -Destination $releaseDir -ErrorAction SilentlyContinue
 Copy-Item "docker-compose.yml" -Destination $releaseDir -ErrorAction SilentlyContinue
 Copy-Item "spark_runner_config.json" -Destination $releaseDir -ErrorAction SilentlyContinue
 
+# Copy tmp folder with all images and JSON data
+if (Test-Path "tmp") {
+    Write-Host "   Copying tmp folder (images + JSON)..." -ForegroundColor Green
+    Copy-Item "tmp" -Destination (Join-Path $releaseDir "tmp") -Recurse -Force
+    $tmpSize = (Get-ChildItem -Path "tmp" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+    Write-Host "   Copied tmp folder: $([math]::Round($tmpSize, 2)) MB" -ForegroundColor Green
+}
+
 # Create README for release
 $releaseReadme = @"
 # Spark Runner GUI v$VERSION

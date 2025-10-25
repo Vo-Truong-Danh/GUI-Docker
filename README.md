@@ -48,8 +48,9 @@ Inspired by GitHub, VS Code, and Notion - designed for developers who value simp
 - [📸 Screenshots](#-screenshots)
 - [🔧 Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
 - [⚙️ Cài Đặt](#️-cài-đặt)
+- [** 📊 ML Analysis Dashboard - Run & Copy Guide**](#-ml-analysis-dashboard---run--copy-guide) 🆕
 - [� Build Standalone Executable](#-build-standalone-executable)
-- [�🚀 Sử Dụng](#-sử-dụng)
+- [🚀 Sử Dụng](#-sử-dụng)
 - [📖 Hướng Dẫn Chi Tiết](#-hướng-dẫn-chi-tiết)
 - [⌨️ Phím Tắt](#️-phím-tắt)
 - [🛠️ Cấu Hình](#️-cấu-hình)
@@ -274,6 +275,77 @@ python create_icon.py
 - `run_spark_gui/main.py` - Icon loading + Windows API integration
 
 **Docs:** See [TASKBAR_ICON_FIX.md](TASKBAR_ICON_FIX.md) for technical details
+
+---
+
+## 📊 ML Analysis Dashboard - Run & Copy Guide
+
+### 🎯 Mục Tiêu
+Chạy phân tích Big Data với PySpark, tạo kết quả visualizations, và view trên dashboard HTML interaktif.
+
+### ⚡ Quick Start (3 Bước)
+
+```bash
+# Step 1: Chạy phân tích ML (tạo tmp/ folder)
+python code7.py
+
+# Step 2: Copy kết quả sang dist (PowerShell)
+.\copy_results.ps1
+
+# Step 3: Mở dashboard
+# Double-click: dist\unified_dashboard.html
+```
+
+### 📂 Kết Quả Sau Khi Copy
+
+```
+dist/
+├── unified_dashboard.html        ← Mở file này
+└── tmp/
+    ├── ml_result_1_customer_clustering.png      (6.5 MB)
+    ├── ml_result_2_regression_analysis.png      (7.2 MB)
+    ├── ml_result_3_product_clustering.png       (8.1 MB)
+    ├── ml_result_4_comprehensive_dashboard.png  (9.3 MB)
+    ├── ml_result_5_advanced_analytics.png       (8.5 MB)
+    ├── ml_result_6_trends_comparison.png        (6.8 MB)
+    └── ml_analysis_summary.json                 (2.5 KB) ← Dữ liệu
+```
+
+### 📋 Available Scripts
+
+| Script | Platform | Mô Tả |
+|--------|----------|-------|
+| `copy_results.ps1` | PowerShell | ⭐ Recommended - có detailed logging |
+| `copy_results.bat` | CMD | Simple batch script |
+| Manual | Explorer | Drag & drop folder |
+
+### 📖 Detailed Guides
+
+- **[RUN_AND_COPY.md](RUN_AND_COPY.md)** - Full step-by-step guide
+- **[COPY_RESULTS_GUIDE.md](COPY_RESULTS_GUIDE.md)** - Troubleshooting + tips
+- **Inline Guide** - Nhìn phần alert box trên dashboard
+
+### 🔧 Troubleshooting
+
+| Error | Giải pháp |
+|-------|----------|
+| "tmp folder not found" | Chạy `code7.py` trước |
+| "Copy failed" | Run PowerShell as Administrator |
+| No images on dashboard | Press F5 (reload), check dev console |
+| JSON not loading | Verify `dist\tmp\ml_analysis_summary.json` tồn tại |
+
+### ✅ Verify Kết Quả
+
+```powershell
+# Check JSON file
+Test-Path "dist\tmp\ml_analysis_summary.json"
+
+# View JSON content
+Get-Content "dist\tmp\ml_analysis_summary.json" | ConvertFrom-Json
+
+# Check file count
+(Get-ChildItem "dist\tmp\" -Filter *.png).Count  # Should be 6
+```
 
 ---
 
