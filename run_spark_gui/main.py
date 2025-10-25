@@ -135,7 +135,13 @@ print("✅ Using Clean Professional UI V4 (all tabs)")
 from modern_theme import setup_modern_theme, ModernTheme, Typography, Spacing, LightTheme
 
 APP_TITLE = "Spark Runner GUI V1.0"
-CONFIG_FILE = "spark_runner_config.json"
+# Fix: Use absolute path from project root (parent of run_spark_gui folder)
+# main.py is in: .../GUI-Docker/run_spark_gui/main.py
+# We want config in: .../GUI-Docker/spark_runner_config.json
+# So go up 1 level from run_spark_gui folder
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # run_spark_gui folder
+PROJECT_ROOT = os.path.dirname(PROJECT_ROOT)  # GUI-Docker folder (project root)
+CONFIG_FILE = os.path.join(PROJECT_ROOT, "spark_runner_config.json")
 VERSION = "1.0.0"  # Initial version
 
 INFO_TEXT = ""  # Removed to save space
@@ -248,6 +254,9 @@ def load_config():
         'auto_extract_archives': True,
         'delete_archive_after_extract': True,
         'compose_file': default_compose_file,
+        'spark_job_timeout': 300,
+        'hdfs_upload_timeout': 300,
+        'docker_command_timeout': 60,
         'history': []
     }
     
@@ -270,8 +279,18 @@ def load_config():
                 if 'compose_file' not in config:
                     config['compose_file'] = default_compose_file
                 
+                # PRESERVE timeout settings (don't let them be removed by validation)
+                timeout_settings = {
+                    'spark_job_timeout': config.get('spark_job_timeout', 300),
+                    'hdfs_upload_timeout': config.get('hdfs_upload_timeout', 300),
+                    'docker_command_timeout': config.get('docker_command_timeout', 60)
+                }
+                
                 # Validate config before returning
                 config = validate_config(config)
+                
+                # RE-ADD timeout settings after validation to ensure they're not lost
+                config.update(timeout_settings)
                 
                 if LOGGING_AVAILABLE and app_logger:
                     app_logger.info("Configuration loaded successfully")
@@ -840,7 +859,8 @@ class App:
             self.settings = SettingsTabV4(
                 parent=self.settings_tab,
                 config_file=CONFIG_FILE,
-                append_log=self.append_log
+                append_log=self.append_log,
+                global_save_config=save_config
             )
             print("✅ Settings Tab initialized")
         except Exception as e:

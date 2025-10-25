@@ -129,10 +129,11 @@ class InfoCard(tk.Frame):
 class SettingsTabV4:
     """Settings tab for port configuration and system preferences"""
     
-    def __init__(self, parent, config_file="spark_runner_config.json", append_log=None):
+    def __init__(self, parent, config_file="spark_runner_config.json", append_log=None, global_save_config=None):
         self.frame = parent
         self.config_file = config_file
         self.append_log = append_log
+        self.global_save_config = global_save_config  # Reference to global save_config function
         self.config = self.load_config()
         
         self.create_ui()
@@ -149,10 +150,15 @@ class SettingsTabV4:
             return {}
     
     def save_config(self):
-        """Save configuration to JSON file"""
+        """Save configuration to JSON file using global save_config if available"""
         try:
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            # Use global save_config if provided (has backup and validation logic)
+            if self.global_save_config:
+                self.global_save_config(self.config)
+            else:
+                # Fallback to local save if global not available
+                with open(self.config_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
             messagebox.showerror("Save Error", f"Failed to save config: {e}")
@@ -206,6 +212,9 @@ class SettingsTabV4:
         
         # Resource Limits Section
         self.create_resource_settings(scrollable_frame)
+        
+        # Timeout Configuration Section
+        self.create_timeout_settings(scrollable_frame)
         
         # Docker Network Section
         self.create_network_settings(scrollable_frame)
@@ -803,6 +812,84 @@ class SettingsTabV4:
             
             self.resource_entries[key] = entry
     
+    def create_timeout_settings(self, parent):
+        """Create timeout configuration section"""
+        timeout_card = SectionCard(parent, title="⏱️ Timeout Settings")
+        timeout_card.pack(fill=tk.X, pady=(0, Spacing.MD))
+        
+        content = timeout_card.get_content()
+        
+        # Get timeout values from config
+        spark_timeout = self.config.get('spark_job_timeout', 300)
+        hdfs_timeout = self.config.get('hdfs_upload_timeout', 300)
+        docker_timeout = self.config.get('docker_command_timeout', 60)
+        
+        timeout_configs = [
+            ("spark_job_timeout", "Spark Job Timeout (seconds)", spark_timeout),
+            ("hdfs_upload_timeout", "HDFS Upload Timeout (seconds)", hdfs_timeout),
+            ("docker_command_timeout", "Docker Command Timeout (seconds)", docker_timeout)
+        ]
+        
+        self.timeout_entries = {}
+        
+        for key, label, default in timeout_configs:
+            row = tk.Frame(content, bg='#FFFFFF')
+            row.pack(fill=tk.X, pady=Spacing.SM)
+            
+            # Label
+            lbl = tk.Label(
+                row,
+                text=label,
+                bg='#FFFFFF',
+                fg=LightTheme.TEXT_PRIMARY,
+                font=('Segoe UI', 10),
+                width=30,
+                anchor='w'
+            )
+            lbl.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+            
+            # Entry with spinbox for easier adjustment
+            entry = tk.Spinbox(
+                row,
+                from_=30,
+                to=1800,
+                font=('Segoe UI', 10),
+                bg='#F6F8FA',
+                fg=LightTheme.TEXT_PRIMARY,
+                relief=tk.FLAT,
+                width=10
+            )
+            entry.delete(0, tk.END)
+            entry.insert(0, str(default))
+            entry.pack(side=tk.LEFT, padx=(0, Spacing.SM))
+            
+            # Hint label
+            hint = tk.Label(
+                row,
+                text="(30-1800s)",
+                bg='#FFFFFF',
+                fg='#6E7781',
+                font=('Segoe UI', 9)
+            )
+            hint.pack(side=tk.LEFT)
+            
+            self.timeout_entries[key] = entry
+        
+        # Info label
+        info_frame = tk.Frame(content, bg='#FFFFFF')
+        info_frame.pack(fill=tk.X, pady=(Spacing.MD, 0))
+        
+        info_text = tk.Label(
+            info_frame,
+            text="💡 Tip: Increase timeout for slow networks or large operations",
+            bg='#FFFFFF',
+            fg='#57606A',
+            font=('Segoe UI', 9),
+            wraplength=400,
+            justify=tk.LEFT
+        )
+        info_text.pack(fill=tk.X)
+    
     def create_network_settings(self, parent):
         """Create network settings section"""
         network_card = SectionCard(parent, title="🌐 Docker Network")
@@ -886,6 +973,23 @@ class SettingsTabV4:
             for key, entry in self.resource_entries.items():
                 self.config['resource_limits'][key] = entry.get()
             
+            # Update timeout settings
+            try:
+                for key, entry in self.timeout_entries.items():
+                    value = int(entry.get())
+                    # Validate timeout range
+                    if value < 30:
+                        value = 30
+                    elif value > 1800:
+                        value = 1800
+                    self.config[key] = value
+            except ValueError:
+                messagebox.showwarning("Invalid Input", "⏱️ Timeout values must be numbers!\n\nUsing default values...")
+                # Use defaults
+                self.config['spark_job_timeout'] = 300
+                self.config['hdfs_upload_timeout'] = 300
+                self.config['docker_command_timeout'] = 60
+            
             # Update network
             self.config['docker_network'] = self.network_entry.get()
             
@@ -893,7 +997,7 @@ class SettingsTabV4:
             if self.save_config():
                 messagebox.showinfo("Success", "✅ Configuration saved successfully!\n\n⚠️ Please restart Docker containers for changes to take effect.")
                 if self.append_log:
-                    self.append_log("✅ Settings saved successfully")
+                    self.append_log("✅ Settings saved successfully (timeouts updated)")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save settings: {e}")
     
@@ -926,6 +1030,17 @@ class SettingsTabV4:
             for key, entry in self.resource_entries.items():
                 entry.delete(0, tk.END)
                 entry.insert(0, resource_defaults.get(key, ""))
+            
+            # Reset timeout entries
+            timeout_defaults = {
+                "spark_job_timeout": "300",
+                "hdfs_upload_timeout": "300",
+                "docker_command_timeout": "60"
+            }
+            
+            for key, entry in self.timeout_entries.items():
+                entry.delete(0, tk.END)
+                entry.insert(0, timeout_defaults.get(key, ""))
             
             # Reset network
             self.network_entry.delete(0, tk.END)

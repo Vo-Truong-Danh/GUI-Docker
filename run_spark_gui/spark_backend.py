@@ -108,6 +108,50 @@ except ImportError as e:
     advanced_cache = None
 
 
+# ========== TIMEOUT CONFIGURATION ==========
+# Load timeout settings from config file
+def get_timeout_from_config(key: str = 'spark_job_timeout', default: int = 300) -> int:
+    """
+    Load timeout value from config file
+    
+    Args:
+        key: Config key name ('spark_job_timeout', 'hdfs_upload_timeout', 'docker_command_timeout')
+        default: Default value if not found in config
+    
+    Returns:
+        Timeout value in seconds
+    """
+    try:
+        import json
+        # Use absolute path to config file (same as main.py)
+        # spark_backend.py is in: .../GUI-Docker/run_spark_gui/spark_backend.py
+        # We want config in: .../GUI-Docker/spark_runner_config.json
+        module_dir = os.path.dirname(os.path.abspath(__file__))  # run_spark_gui folder
+        project_root = os.path.dirname(module_dir)  # GUI-Docker folder
+        config_file = os.path.join(project_root, 'spark_runner_config.json')
+        
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                value = config.get(key, default)
+                # Validate range - allow any value for testing purposes
+                if isinstance(value, (int, float)):
+                    return int(value)  # Return as-is for testing
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.warning(f"Failed to load timeout from config: {e}, using default {default}s")
+            except Exception:
+                pass
+    return default
+
+# Don't cache timeout values - read from config each time to get latest values
+# This allows timeout changes to take effect immediately without app restart
+SPARK_JOB_TIMEOUT = None  # Will be read from config when needed
+HDFS_UPLOAD_TIMEOUT = None  # Will be read from config when needed
+DOCKER_COMMAND_TIMEOUT = None  # Will be read from config when needed
+
+
 # Process tracking for cleanup with enhanced safety
 _active_processes: List[subprocess.Popen] = []
 _process_lock = threading.RLock()
@@ -613,7 +657,7 @@ def copy_file_to_container(filepath, container, log_callback=None):
         return False
 
 
-def submit_spark_job(container, master, filename, log_callback=None, timeout=300):
+def submit_spark_job(container, master, filename, log_callback=None, timeout=None):
     """
     Submit Spark job to container with realtime output streaming
     
@@ -622,11 +666,15 @@ def submit_spark_job(container, master, filename, log_callback=None, timeout=300
         master: Spark master URL
         filename: Python filename (already in /tmp/)
         log_callback: Logging function
-        timeout: Timeout in seconds (default 300 = 5 minutes)
+        timeout: Timeout in seconds (default from config, or None for 300)
         
     Returns:
         bool: True if successful
     """
+    # Use configured timeout if not specified - READ FROM CONFIG EACH TIME (not cached)
+    if timeout is None:
+        timeout = get_timeout_from_config('spark_job_timeout', 300)
+    
     if log_callback:
         log_callback(f'→ Submitting Spark job: {filename}', 'info')
         log_callback('📊 Streaming realtime output...', 'info')
@@ -1107,7 +1155,7 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
         log_callback('\n→ STEP 2: Submit Spark job', 'info')
     
     filename = Path(filepath).name
-    result = submit_spark_job(container, master, filename, log_callback, timeout=300)
+    result = submit_spark_job(container, master, filename, log_callback)
     
     # Handle tuple return (success, missing_module)
     if isinstance(result, tuple):
@@ -1176,7 +1224,7 @@ def auto_run_spark_job(filepath, container, master, log_callback=None, stop_chec
                 time.sleep(2)
             
             # BƯỚC 3: Retry job
-            retry_result = submit_spark_job(container, master, filename, log_callback, timeout=300)
+            retry_result = submit_spark_job(container, master, filename, log_callback)
             if isinstance(retry_result, tuple):
                 success, _ = retry_result
             else:

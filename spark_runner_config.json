@@ -8,11 +8,20 @@
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/GUI-Docker/docker-compose.yml",
   "history": [
+    "D:/Downloads/code11.py",
+    "D:/Downloads/code10.py",
+    "D:/Downloads/code9.py",
+    "D:/Downloads/code8.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan04/checkspammail - Copy.py",
+    "D:/BaiTapSinhVien/TH BigData/Tuan04/mail_topic_classifier_csv.py",
     "D:/BaiTapSinhVien/TH BigData/Tuan04/checkspammail.py",
     "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code7.py"
   ],
   "hdfs_path": "/input",
   "hdfs_port": "8020",
   "auto_extract": true,
-  "delete_after_extract": true
+  "delete_after_extract": true,
+  "spark_job_timeout": 7200,
+  "hdfs_upload_timeout": 7200,
+  "docker_command_timeout": 7200
 }

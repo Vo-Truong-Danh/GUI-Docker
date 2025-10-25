@@ -10,6 +10,8 @@ Features:
 
 import subprocess
 import time
+import os
+import json
 from typing import Tuple, Optional, Callable
 from pathlib import Path
 
@@ -19,6 +21,32 @@ try:
 except ImportError:
     def run_hidden(*args, **kwargs):
         return run_hidden(*args, **kwargs)
+
+
+# Load HDFS timeout from config
+def get_hdfs_timeout_from_config(default: int = 300) -> int:
+    """Load HDFS timeout from config file"""
+    try:
+        # Use absolute path to config file (same as main.py)
+        # hdfs_utils.py is in: .../GUI-Docker/run_spark_gui/hdfs_utils.py
+        # We want config in: .../GUI-Docker/spark_runner_config.json
+        module_dir = os.path.dirname(os.path.abspath(__file__))  # run_spark_gui folder
+        project_root = os.path.dirname(module_dir)  # GUI-Docker folder
+        config_file = os.path.join(project_root, 'spark_runner_config.json')
+        
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                value = config.get('hdfs_upload_timeout', default)
+                if isinstance(value, (int, float)):
+                    return int(value)  # Return as-is for testing
+    except Exception:
+        pass
+    return default
+
+# Cache HDFS timeout
+# NOTE: Don't cache - read fresh from config each time
+HDFS_UPLOAD_TIMEOUT = None
 
 
 class HDFSError(Exception):
@@ -375,7 +403,7 @@ def upload_to_hdfs_with_retry(
             result = run_hidden(
                 ['docker', 'exec', container, 'hdfs', 'dfs', '-put', '-f', local_file, hdfs_path],
                 capture_output=True,
-                timeout=300,  # 5 minutes
+                timeout=get_hdfs_timeout_from_config(300),
                 text=True
             )
             

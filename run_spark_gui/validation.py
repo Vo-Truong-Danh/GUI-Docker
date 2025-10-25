@@ -235,6 +235,9 @@ class ConfigValidator:
         'auto_extract_archives': lambda v: (isinstance(v, bool), "Must be boolean"),
         'delete_archive_after_extract': lambda v: (isinstance(v, bool), "Must be boolean"),
         'compose_file': lambda v: Validator.is_valid_path(v, must_exist=False),
+        'spark_job_timeout': lambda v: (isinstance(v, (int, float)) and 3 <= v <= 7200, "Must be number between 3-7200"),
+        'hdfs_upload_timeout': lambda v: (isinstance(v, (int, float)) and 3 <= v <= 7200, "Must be number between 3-7200"),
+        'docker_command_timeout': lambda v: (isinstance(v, (int, float)) and 3 <= v <= 7200, "Must be number between 3-7200"),
     }
     
     @classmethod
