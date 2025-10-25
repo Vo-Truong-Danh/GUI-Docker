@@ -1055,29 +1055,80 @@
     </div>
 
     <script>
-        // ==================== REAL DATA ====================
-        const REAL_DATA = {
-            total_revenue: 17743429.18,
-            total_transactions: 805549,
-            avg_order_value: 22.03,
-            total_customers: 5249,
-            num_countries: 41,
-            num_products: 5283,
-            segments: {
-                VIP: { count: 1262, percentage: 24.04 },
-                HighValue: { count: 322, percentage: 6.13 },
-                Regular: { count: 1489, percentage: 28.37 },
-                Growing: { count: 889, percentage: 16.94 },
-                New: { count: 1287, percentage: 24.52 }
-            },
-            lr_r2: 0.724,
-            rf_r2: 0.726,
-            rmse: 3434.72,
-            top_country: "United Kingdom",
-            top_country_revenue: 14723147.52,
-            top_product: "REGENCY CAKESTAND 3 TIER",
-            top_product_revenue: 286486.30
-        };
+
+        // ==================== LOAD DATA DYNAMICALLY ====================
+        let REAL_DATA = null;
+        let RFM_3D_DATA = null;
+        // Hàm load file JSON với cache-busting
+        async function fetchJsonWithCacheBusting(path) {
+            const url = path + '?t=' + Date.now();
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error('Không thể load ' + path);
+                // Thử parse JSON tiêu chuẩn trước
+                try {
+                    return await resp.clone().json();
+                } catch (e) {
+                    // Nếu không phải JSON array/object (ví dụ: JSON Lines), parse theo dòng
+                    try {
+                        const txt = await resp.text();
+                        const lines = txt.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                        const arr = [];
+                        for (const line of lines) {
+                            try { arr.push(JSON.parse(line)); } catch (err) { console.warn('JSON line parse failed', err); }
+                        }
+                        return arr;
+                    } catch (err2) {
+                        console.warn('Lỗi parse text JSONL:', err2);
+                        return null;
+                    }
+                }
+            } catch (e) {
+                console.warn('Lỗi load file:', path, e);
+                return null;
+            }
+        }
+
+        // Hàm khởi tạo dữ liệu dashboard
+        async function initDashboardData() {
+            // Ưu tiên lấy file mới nhất từ tmp/
+            REAL_DATA = await fetchJsonWithCacheBusting('tmp/ml_analysis_summary.json');
+            RFM_3D_DATA = await fetchJsonWithCacheBusting('tmp/customer_rfm_3d.json');
+            if (!REAL_DATA) {
+                // Fallback dữ liệu mẫu nếu thiếu file
+                REAL_DATA = {
+                    total_revenue: 17743429.18,
+                    total_transactions: 805549,
+                    avg_order_value: 22.03,
+                    total_customers: 5249,
+                    num_countries: 41,
+                    num_products: 5283,
+                    customer_segments: {
+                        VIP: { count: 1262, percentage: 24.04 },
+                        HighValue: { count: 322, percentage: 6.13 },
+                        Regular: { count: 1489, percentage: 28.37 },
+                        Growing: { count: 889, percentage: 16.94 },
+                        New: { count: 1287, percentage: 24.52 }
+                    },
+                    lr_r2_score: 0.724,
+                    rf_r2_score: 0.726,
+                    lr_rmse: 3434.72,
+                    rf_rmse: 3434.72,
+                    best_model: "Random Forest",
+                    best_model_r2: 0.726,
+                    top_country: "United Kingdom",
+                    top_country_revenue: 14723147.52,
+                    top_product: "REGENCY CAKESTAND 3 TIER",
+                    top_product_revenue: 286486.30
+                };
+            }
+        }
+
+        // Gọi khi load trang
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initDashboardData();
+            if (typeof populateData === 'function') populateData();
+        });
 
         // ==================== PAGE NAVIGATION ====================
         function showPage(pageId, element) {
@@ -1108,79 +1159,143 @@
 
         // ==================== POPULATE DATA ====================
         function populateData() {
+            if (!REAL_DATA) return;
             // Dashboard Stats
             document.getElementById('total-revenue').textContent = '£' + (REAL_DATA.total_revenue / 1000000).toFixed(1) + 'M';
             document.getElementById('total-transactions').textContent = (REAL_DATA.total_transactions / 1000).toFixed(0) + 'K';
             document.getElementById('avg-order').textContent = '£' + REAL_DATA.avg_order_value.toFixed(2);
-            document.getElementById('total-customers').textContent = REAL_DATA.total_customers.toLocaleString();
-            
+            document.getElementById('total-customers').textContent = (REAL_DATA.total_customers || REAL_DATA.num_customers || 0).toLocaleString();
             // Science Data
             document.getElementById('sci-records').textContent = REAL_DATA.total_transactions.toLocaleString();
             document.getElementById('sci-countries').textContent = REAL_DATA.num_countries;
             document.getElementById('sci-products').textContent = REAL_DATA.num_products.toLocaleString();
-            document.getElementById('sci-customers').textContent = REAL_DATA.total_customers.toLocaleString();
-            
-            document.getElementById('sci-vip').textContent = REAL_DATA.segments.VIP.count.toLocaleString();
-            document.getElementById('sci-high').textContent = REAL_DATA.segments.HighValue.count;
-            document.getElementById('sci-regular').textContent = REAL_DATA.segments.Regular.count.toLocaleString();
-            document.getElementById('sci-growing').textContent = REAL_DATA.segments.Growing.count;
-            document.getElementById('sci-new').textContent = REAL_DATA.segments.New.count.toLocaleString();
-            
-            document.getElementById('sci-lr-r2').textContent = REAL_DATA.lr_r2.toFixed(3);
-            document.getElementById('sci-rf-r2').textContent = REAL_DATA.rf_r2.toFixed(3);
-            document.getElementById('sci-best-model').textContent = 'RF';
-            document.getElementById('sci-rmse').textContent = '£' + REAL_DATA.rmse.toFixed(0);
-            
-            document.getElementById('sci-top-country').textContent = 'UK';
-            document.getElementById('sci-top-country-rev').textContent = '£' + (REAL_DATA.top_country_revenue / 1000000).toFixed(1) + 'M';
-            document.getElementById('sci-top-product').textContent = 'CAKESTAND';
-            document.getElementById('sci-top-product-rev').textContent = '£' + (REAL_DATA.top_product_revenue / 1000).toFixed(0) + 'K';
+            document.getElementById('sci-customers').textContent = (REAL_DATA.total_customers || REAL_DATA.num_customers || 0).toLocaleString();
+            let seg = REAL_DATA.customer_segments || REAL_DATA.segments || {};
+            document.getElementById('sci-vip').textContent = (seg.VIP?.count || 0).toLocaleString();
+            document.getElementById('sci-high').textContent = (seg['High-Value']?.count || seg.HighValue?.count || 0);
+            document.getElementById('sci-regular').textContent = (seg.Regular?.count || 0).toLocaleString();
+            document.getElementById('sci-growing').textContent = (seg.Growing?.count || 0);
+            document.getElementById('sci-new').textContent = (seg.New?.count || 0).toLocaleString();
+            document.getElementById('sci-lr-r2').textContent = (REAL_DATA.lr_r2_score || REAL_DATA.lr_r2 || 0).toFixed(3);
+            document.getElementById('sci-rf-r2').textContent = (REAL_DATA.rf_r2_score || REAL_DATA.rf_r2 || 0).toFixed(3);
+            document.getElementById('sci-best-model').textContent = (REAL_DATA.best_model || 'RF');
+            document.getElementById('sci-rmse').textContent = '£' + ((REAL_DATA.lr_rmse || REAL_DATA.rmse || 0).toFixed(0));
+            document.getElementById('sci-top-country').textContent = (REAL_DATA.top_country || 'UK');
+            document.getElementById('sci-top-country-rev').textContent = '£' + ((REAL_DATA.top_country_revenue || 0) / 1000000).toFixed(1) + 'M';
+            document.getElementById('sci-top-product').textContent = (REAL_DATA.top_product || 'CAKESTAND');
+            document.getElementById('sci-top-product-rev').textContent = '£' + ((REAL_DATA.top_product_revenue || 0) / 1000).toFixed(0) + 'K';
         }
 
         // ==================== 3D CHARTS ====================
         function create3DCharts() {
-            // Chart 1: Customer Segments 3D
+            // Chart 1: Customer Segments 3D (dùng file customer_rfm_3d.json nếu có)
+            let segData = {VIP: [], HighValue: [], Regular: [], Growing: [], New: []};
+            let segMap = {
+                0: 'VIP', 1: 'HighValue', 2: 'Regular', 3: 'Growing', 4: 'New',
+                'VIP': 'VIP', 'High-Value': 'HighValue', 'HighValue': 'HighValue', 'Regular': 'Regular', 'Growing': 'Growing', 'New': 'New'
+            };
+            if (RFM_3D_DATA && Array.isArray(RFM_3D_DATA)) {
+                for (const row of RFM_3D_DATA) {
+                    let seg = segMap[row.prediction] || segMap[row.Segment] || 'Other';
+                    if (segData[seg]) segData[seg].push(row);
+                }
+            }
+            let x = [], y = [], z = [], text = [], size = [], color = [];
+            let colorMap = {VIP:'#ffc107', HighValue:'#dc3545', Regular:'#007bff', Growing:'#28a745', New:'#6c757d'};
+            let segNames = Object.keys(segData);
+            for (let seg of segNames) {
+                for (let row of segData[seg]) {
+                    x.push(row.Frequency || 0);
+                    y.push(row.Recency || 0);
+                    z.push(row.Monetary || 0);
+                    text.push(seg);
+                    size.push(12);
+                    color.push(colorMap[seg] || '#888');
+                }
+            }
+            // Nếu có quá nhiều điểm, dùng stratified sampling theo phân khúc để tránh rối mắt
+            const MAX_POINTS = 300; // thay đổi nếu muốn ít hơn/ nhiều hơn
+            if (x.length > MAX_POINTS) {
+                // Tách index theo phân khúc
+                const indicesBySeg = {};
+                for (let i = 0; i < text.length; i++) {
+                    const seg = text[i] || 'Other';
+                    if (!indicesBySeg[seg]) indicesBySeg[seg] = [];
+                    indicesBySeg[seg].push(i);
+                }
+                const segNamesOrdered = Object.keys(indicesBySeg);
+                // Tính quota theo tỷ lệ kích thước phân khúc nhưng đảm bảo tối thiểu 5 điểm mỗi phân khúc nếu có
+                const total = x.length;
+                const quotas = {};
+                let allocated = 0;
+                for (const seg of segNamesOrdered) {
+                    const sizeSeg = indicesBySeg[seg].length;
+                    const q = Math.max(5, Math.floor(sizeSeg / total * MAX_POINTS));
+                    quotas[seg] = q;
+                    allocated += q;
+                }
+                // Nếu allocated < MAX_POINTS, phân thêm cho các phân khúc lớn theo thứ tự
+                let remain = MAX_POINTS - allocated;
+                if (remain > 0) {
+                    // sort segments by size desc
+                    const sorted = segNamesOrdered.sort((a,b) => indicesBySeg[b].length - indicesBySeg[a].length);
+                    let idx = 0;
+                    while (remain > 0) {
+                        quotas[sorted[idx % sorted.length]] += 1;
+                        remain -= 1;
+                        idx += 1;
+                    }
+                }
+                // Lấy mẫu ngẫu nhiên theo quota mỗi phân khúc (Fisher-Yates shuffle per-seg)
+                const xs = [], ys = [], zs = [], ts = [], ss = [], cs = [];
+                for (const seg of segNamesOrdered) {
+                    const arr = indicesBySeg[seg].slice();
+                    // shuffle arr
+                    for (let i = arr.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [arr[i], arr[j]] = [arr[j], arr[i]];
+                    }
+                    const take = Math.min(quotas[seg] || 0, arr.length);
+                    for (let k = 0; k < take; k++) {
+                        const i = arr[k];
+                        xs.push(x[i]); ys.push(y[i]); zs.push(z[i]); ts.push(text[i]); ss.push(size[i]); cs.push(color[i]);
+                    }
+                }
+                x = xs; y = ys; z = zs; text = ts; size = ss; color = cs;
+            }
+            // Nếu không có dữ liệu thật thì fallback mẫu
+            if (x.length === 0) {
+                x = [1262, 322, 1489, 889, 1287];
+                y = [24.04, 6.13, 28.37, 16.94, 24.52];
+                z = [50000, 15000, 35000, 25000, 12000];
+                text = ['VIP', 'HighValue', 'Regular', 'Growing', 'New'];
+                size = [20, 15, 18, 16, 17];
+                color = ['#ffc107', '#dc3545', '#007bff', '#28a745', '#6c757d'];
+            }
             const segmentData = [{
                 type: 'scatter3d',
                 mode: 'markers',
-                x: [1262, 322, 1489, 889, 1287],
-                y: [24.04, 6.13, 28.37, 16.94, 24.52],
-                z: [50000, 15000, 35000, 25000, 12000], // Estimated revenue per segment
-                text: ['VIP', 'High-Value', 'Regular', 'Growing', 'New'],
+                x, y, z, text,
                 marker: {
-                    size: [20, 15, 18, 16, 17],
-                    color: ['#ffc107', '#dc3545', '#007bff', '#28a745', '#6c757d'],
+                    size,
+                    color,
                     opacity: 0.8,
-                    line: {
-                        color: 'white',
-                        width: 2
-                    }
+                    line: { color: 'white', width: 2 }
                 },
-                hovertemplate: '<b>%{text}</b><br>' +
-                    'Số lượng: %{x}<br>' +
-                    'Tỷ lệ: %{y:.2f}%<br>' +
-                    'Doanh thu ước tính: £%{z:,.0f}<br>' +
-                    '<extra></extra>'
+                hovertemplate: '<b>%{text}</b><br>Recency: %{y}<br>Frequency: %{x}<br>Monetary: £%{z:,.0f}<br><extra></extra>'
             }];
-
             const segmentLayout = {
-                title: {
-                    text: 'Phân bố 3D: Khách hàng theo Phân khúc',
-                    font: { size: 18, family: 'Arial, sans-serif' }
-                },
+                title: { text: 'Phân bố 3D: Khách hàng theo Phân khúc', font: { size: 18, family: 'Arial, sans-serif' } },
                 scene: {
-                    xaxis: { title: 'Số lượng Khách hàng' },
-                    yaxis: { title: 'Phần trăm (%)' },
-                    zaxis: { title: 'Doanh thu Ước tính (£)' },
-                    camera: {
-                        eye: { x: 1.5, y: 1.5, z: 1.3 }
-                    }
+                    xaxis: { title: 'Frequency (Số giao dịch)' },
+                    yaxis: { title: 'Recency (Ngày gần nhất)' },
+                    zaxis: { title: 'Monetary (£)' },
+                    camera: { eye: { x: 1.5, y: 1.5, z: 1.3 } }
                 },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 margin: { l: 0, r: 0, b: 0, t: 40 }
             };
-
             Plotly.newPlot('chart-3d-customers', segmentData, segmentLayout, {responsive: true});
 
             // Chart 2: Revenue by Country & Month (3D Bar)

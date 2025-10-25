@@ -215,43 +215,41 @@ color_palette_5_segments = {
     'New Customers': '#9b59b6'
 }
 
-# ============================================
-# XUẤT DỮ LIỆU RFM CHO 3D VISUALIZATION (CRITICAL!)
-# ============================================
-print("\n[7.5/10] Xuất dữ liệu RFM cho Dashboard 3D...")
 
-if date_col:
+# ============================================
+# XUẤT DỮ LIỆU RFM CHO 3D VISUALIZATION (CẢI TIẾN VÀ TỐI ƯU)
+# ============================================
+print("\n[7.5/10] Xuất dữ liệu RFM cho Dashboard 3D (CẢI TIẾN)...")
+
+import glob
+import shutil
+
+def export_rfm_3d_data(df_clean, customer_col, date_col, predictions_5, OUTPUT_DIR, max_records=20000):
+    if not date_col:
+        print("  ⚠️ Không tìm thấy cột Date - Dashboard 3D sẽ hiển thị lỗi")
+        print("  💡 Tip: Cần cột Date/InvoiceDate để tính Recency cho 3D visualization")
+        return False
     try:
         print("  → Tính toán Recency (R), Frequency (F), Monetary (M)...")
-        
-        # Tìm ngày mới nhất trong dataset
         max_date = df_clean.agg(_max(col(date_col))).collect()[0][0]
         print(f"     📅 Max date in dataset: {max_date}")
-        
-        # Tính RFM đầy đủ cho mỗi khách hàng
         customer_rfm_full = df_clean.groupBy(customer_col).agg(
             datediff(lit(max_date), _max(col(date_col))).alias("Recency"),
             count("Invoice").alias("Frequency"),
             _sum("Revenue").alias("Monetary")
         ).filter(col(customer_col).isNotNull())
-        
-        # Join với cluster predictions từ K-Means k=5
         customer_rfm_with_cluster = customer_rfm_full.join(
             predictions_5.select(customer_col, "cluster"),
             on=customer_col,
             how="inner"
         )
-        
-        # Lấy thống kê để kiểm tra
         rfm_count = customer_rfm_with_cluster.count()
         print(f"     📊 Tổng số khách hàng có RFM: {rfm_count:,}")
-        
-        # Sample để kiểm tra dữ liệu
-        sample_df = customer_rfm_with_cluster.limit(5).toPandas()
-        print(f"     📈 Recency range: {sample_df['Recency'].min():.0f} - {sample_df['Recency'].max():.0f} ngày")
-        print(f"     📈 Frequency range: {sample_df['Frequency'].min():.0f} - {sample_df['Frequency'].max():.0f} lần")
-        print(f"     📈 Monetary range: ${sample_df['Monetary'].min():.2f} - ${sample_df['Monetary'].max():.2f}")
-        
+        # Nếu quá nhiều bản ghi, chỉ lấy ngẫu nhiên max_records để tránh quá tải dashboard
+        if rfm_count > max_records:
+            print(f"     ⚠️ Số lượng bản ghi lớn (> {max_records}), chỉ lấy mẫu ngẫu nhiên để tối ưu dashboard!")
+            customer_rfm_with_cluster = customer_rfm_with_cluster.orderBy(expr('rand()')).limit(max_records)
+            rfm_count = max_records
         # Xuất ra JSON (format JSON Lines cho Spark)
         rfm_output_path = OUTPUT_DIR + "customer_rfm_3d_temp"
         customer_rfm_with_cluster.select(
@@ -261,47 +259,37 @@ if date_col:
             col("Monetary").cast("double").alias("Monetary"),
             col("cluster").cast("integer").alias("prediction")
         ).coalesce(1).write.mode("overwrite").json(rfm_output_path)
-        
         # Đổi tên file part-00000 thành customer_rfm_3d.json
-        import glob
-        import shutil
         part_files = glob.glob(rfm_output_path + "/part-*.json")
+        final_path = OUTPUT_DIR + "customer_rfm_3d.json"
         if part_files:
-            final_path = OUTPUT_DIR + "customer_rfm_3d.json"
-            
-            # Xóa file cũ nếu tồn tại
             if os.path.exists(final_path):
                 os.remove(final_path)
-            
             shutil.move(part_files[0], final_path)
-            
-            # Xóa thư mục tạm
             try:
                 shutil.rmtree(rfm_output_path)
-            except:
-                pass
-            
-            # Verify file đã tạo
+            except Exception as e:
+                print(f"     ⚠️ Không thể xóa thư mục tạm: {e}")
             file_size = os.path.getsize(final_path) / 1024  # KB
             print(f"     ✅ Đã xuất {rfm_count:,} records RFM")
             print(f"     📂 File: {final_path}")
             print(f"     💾 Size: {file_size:.1f} KB")
-            
-            # Đọc vài dòng đầu để verify format
             with open(final_path, 'r', encoding='utf-8') as f:
                 first_line = f.readline()
                 print(f"     🔍 Sample JSON: {first_line[:100]}...")
+            return True
         else:
             print(f"     ⚠️ Không tìm thấy file part để di chuyển")
-        
+            return False
     except Exception as e:
         print(f"     ⚠️ Lỗi xuất RFM data: {e}")
         import traceback
         traceback.print_exc()
         print(f"     → Dashboard 3D sẽ hiển thị lỗi 'RFM data not found'")
-else:
-    print("  ⚠️ Không tìm thấy cột Date - Dashboard 3D sẽ hiển thị lỗi")
-    print("  💡 Tip: Cần cột Date/InvoiceDate để tính Recency cho 3D visualization")
+        return False
+
+# Gọi hàm xuất dữ liệu RFM 3D
+export_rfm_3d_data(df_clean, customer_col, date_col, predictions_5, OUTPUT_DIR)
 
 
 # ============================================

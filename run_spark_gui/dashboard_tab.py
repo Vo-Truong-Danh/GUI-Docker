@@ -367,84 +367,64 @@ class DashboardTab:
     def _copy_images_thread(self):
         """Background thread to copy images"""
         try:
-            # Get project root directory
+            # Lấy thư mục project root và tmp
             project_root = str(Path(__file__).parent.parent)
             tmp_dir = os.path.join(project_root, "tmp")
-            
-            # Create tmp directory if not exists
             os.makedirs(tmp_dir, exist_ok=True)
             self.append_log(f"📂 Thư mục đích: {tmp_dir}", "info")
-            
-            # Get list of running containers
-            result = subprocess.run(
-                ["docker", "ps", "--quiet"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
+
+            # Lấy danh sách container đang chạy
+            result = subprocess.run([
+                "docker", "ps", "--quiet"
+            ], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 self.append_log("❌ Docker không khả dụng hoặc không có container chạy", "error")
                 self.copy_btn.config(state=tk.NORMAL)
                 return
-            
             containers = result.stdout.strip().split('\n')
-            
             if not containers or not containers[0]:
                 self.append_log("❌ Không có container nào đang chạy", "error")
                 self.copy_btn.config(state=tk.NORMAL)
                 return
-            
-            # Try to copy from each container
+
             copied_count = 0
             container_found = False
-            
             for container_id in containers:
                 if not container_id.strip():
                     continue
-                
                 try:
-                    # Get container name
-                    name_result = subprocess.run(
-                        ["docker", "ps", "--filter", f"id={container_id}", "--format", "{{.Names}}"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
+                    # Lấy tên container
+                    name_result = subprocess.run([
+                        "docker", "ps", "--filter", f"id={container_id}", "--format", "{{.Names}}"
+                    ], capture_output=True, text=True, timeout=5)
                     container_name = name_result.stdout.strip()
-                    
-                    # Check if images AND JSON exist in container using find command (more reliable)
-                    # Find both PNG files AND JSON file
-                    check_cmd = 'find /tmp \\( -name "ml_result_*.png" -o -name "ml_analysis_summary.json" \\) -type f'
-                    result = subprocess.run(
-                        ["docker", "exec", container_id, "sh", "-c", check_cmd],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    
+
+                    # Kiểm tra file PNG/JSON trong container
+                    check_cmd = 'find /tmp \( -name "ml_result_*.png" -o -name "ml_analysis_summary.json" -o -name "customer_rfm_3d.json" \) -type f'
+                    result = subprocess.run([
+                        "docker", "exec", container_id, "sh", "-c", check_cmd
+                    ], capture_output=True, text=True, timeout=8)
                     found_files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
                     png_files = [f for f in found_files if f.endswith('.png')]
                     json_files = [f for f in found_files if f.endswith('.json')]
-                    
+
                     if found_files:
                         container_found = True
                         self.append_log(f"🐳 Tìm thấy {len(png_files)} ảnh + {len(json_files)} JSON trong container: {container_name}", "success")
-                        
-                        # Copy each file individually (both PNG and JSON)
                         for src_path in found_files:
                             try:
                                 filename = os.path.basename(src_path)
                                 dst_path = os.path.join(tmp_dir, filename)
-                                
-                                # Copy using docker cp
-                                copy_result = subprocess.run(
-                                    ["docker", "cp", f"{container_id}:{src_path}", dst_path],
-                                    capture_output=True,
-                                    text=True,
-                                    timeout=15
-                                )
-                                
+                                # Nếu file đã tồn tại, xóa trước để tránh lỗi atomic move
+                                if os.path.exists(dst_path):
+                                    try:
+                                        os.remove(dst_path)
+                                    except Exception as e:
+                                        self.append_log(f"   ⚠ Không thể xóa file cũ {filename}: {str(e)}", "warning")
+                                # Copy file từ container
+                                copy_result = subprocess.run([
+                                    "docker", "cp", f"{container_id}:{src_path}", dst_path
+                                ], capture_output=True, text=True, timeout=20)
                                 if copy_result.returncode == 0 and os.path.exists(dst_path):
                                     file_size = os.path.getsize(dst_path)
                                     self.append_log(f"   ✓ {filename} ({file_size/1024:.1f} KB)", "success")
@@ -453,26 +433,21 @@ class DashboardTab:
                                     self.append_log(f"   ⚠ {filename}: {copy_result.stderr}", "warning")
                             except Exception as e:
                                 self.append_log(f"   ⚠ {filename}: {str(e)}", "warning")
-                        
                         break
-                
                 except Exception as e:
-                    self.append_log(f"⚠ Lỗi kiểm tra container {container_name}: {str(e)}", "warning")
+                    self.append_log(f"⚠ Lỗi kiểm tra/copy container {container_id}: {str(e)}", "warning")
                     continue
-            
             if not container_found:
                 self.append_log("⚠ Không tìm thấy files (PNG + JSON) trong bất kỳ container nào", "warning")
                 self.append_log("💡 Hãy chạy code phân tích trong container trước", "info")
             elif copied_count > 0:
                 self.append_log(f"✅ Đã copy {copied_count} files (PNG + JSON) thành công!", "success")
                 self.append_log(f"📍 Vị trí: {tmp_dir}", "success")
-                self.append_log(f"📄 Bao gồm: ml_analysis_summary.json + ml_result_*.png", "info")
+                self.append_log(f"📄 Bao gồm: ml_analysis_summary.json, customer_rfm_3d.json, ml_result_*.png", "info")
                 self.append_log(f"🔄 Reload browser để xem dữ liệu (hoặc nhấn F5)", "info")
             else:
                 self.append_log(f"❌ Không copy được files nào. Kiểm tra quyền Docker", "error")
-            
         except Exception as e:
             self.append_log(f"❌ Lỗi copy ảnh: {str(e)}", "error")
-        
         finally:
             self.copy_btn.config(state=tk.NORMAL)
