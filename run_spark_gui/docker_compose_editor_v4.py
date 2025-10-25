@@ -510,33 +510,8 @@ volumes:
         from spark_backend import docker_compose_command
         import subprocess
         
-        # PROACTIVE CLEANUP: Check for existing containers BEFORE start
-        self.append_log('🔍 Checking for existing containers...', 'info')
-        try:
-            result = subprocess.run(
-                'docker ps -a --format "{{.Names}}"',
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if result.returncode == 0 and result.stdout.strip():
-                existing_containers = result.stdout.strip().split('\n')
-                self.append_log(f'📋 Found {len(existing_containers)} existing containers', 'info')
-                
-                # Remove all existing containers proactively
-                self.append_log('🧹 Proactive cleanup: removing all existing containers...', 'warning')
-                for container in existing_containers:
-                    cmd = f'docker rm -f {container.strip()}'
-                    subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
-                self.append_log('✅ All existing containers removed', 'success')
-            else:
-                self.append_log('✅ No existing containers found', 'success')
-        except Exception as e:
-            self.append_log(f'⚠️ Cleanup check failed: {e}', 'warning')
-        
-        # Start compose
+        # Start compose directly (do not remove unrelated containers or volumes)
+        self.append_log('ℹ️ Starting docker-compose (preserving volumes). If you need a full cleanup, use Clean.', 'info')
         returncode, stdout, stderr = docker_compose_command('up', filepath, self.append_log)
         
         if returncode == 0:

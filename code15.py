@@ -513,6 +513,17 @@ product_clusters_pd['ProductCategory'] = product_clusters_pd['product_cluster'].
 print(f"  ✅ Phân cụm {len(product_clusters_pd):,} sản phẩm thành {len(labels_to_use)} nhóm")
 print(f"     Distribution: {product_clusters_pd['ProductCategory'].value_counts().to_dict()}")
 
+# Xuất dữ liệu product clusters cho dashboard 3D (export as JSON array)
+try:
+    prod_export_path = os.path.join(OUTPUT_DIR, 'product_clusters_3d.json')
+    # Select and rename columns for frontend
+    prod_export_df = product_clusters_pd[['Description', 'TotalQuantity', 'TotalRevenue', 'NumTransactions', 'ProductCategory']].copy()
+    prod_export_df.columns = ['Description', 'TotalQuantity', 'TotalRevenue', 'NumTransactions', 'ProductCategory']
+    prod_export_df.to_json(prod_export_path, orient='records', force_ascii=False)
+    print(f"     ✅ Đã xuất product clusters cho dashboard: {prod_export_path}")
+except Exception as e:
+    print(f"     ⚠️ Lỗi xuất product clusters JSON: {e}")
+
 # In chi tiết từng cluster
 print("\n  📊 Chi tiết các cụm:")
 for idx, row in product_cluster_summary.iterrows():

@@ -805,17 +805,8 @@ class SparkRunnerTabV4:
         self.docker_status_badge.update_status('Starting...', 'info')
         
         def run_start():
-            # Luôn dọn dẹp trước khi up để tránh conflict
-            self.append_log('🧹 Cleaning up old containers first (down -v)...', 'warning')
-            docker_compose_command('down', compose_file, self.append_log)
-            self.append_log('✅ Cleanup completed', 'success')
-            
-            # Chờ 2 giây để Docker hoàn tất cleanup
-            import time
-            time.sleep(2)
-            
-            # Chạy docker-compose up -d (tạo mới containers)
-            self.append_log('🚀 Creating and starting containers...', 'info')
+            # Start containers without destroying volumes so installed libs/cache are preserved
+            self.append_log('🚀 Creating and/or starting containers (docker-compose up -d)...', 'info')
             returncode, stdout, stderr = docker_compose_command('up', compose_file, self.append_log)
             
             if returncode == 0:
@@ -831,7 +822,7 @@ class SparkRunnerTabV4:
         self.thread_pool.submit(run_start)
     
     def docker_stop(self):
-        """Stop Docker containers using docker-compose down -v (xóa containers + volumes)"""
+        """Stop Docker containers using docker-compose stop (preserve volumes)"""
         compose_file = self.config.get('compose_file')
         
         # Validate compose file exists
@@ -845,18 +836,18 @@ class SparkRunnerTabV4:
             )
             return
         
-        self.append_log('🐳 Stopping Docker containers (docker-compose down -v)...', 'warning')
+        self.append_log('🐳 Stopping Docker containers (docker-compose stop)...', 'warning')
         self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
-        self.append_log('💡 Tip: Sử dụng "down -v" để xóa hoàn toàn containers + volumes', 'info')
+        self.append_log('💡 Tip: Sử dụng "stop" để dừng containers và giữ volumes; dùng Clean để xóa volumes nếu cần', 'info')
         self.docker_status_badge.update_status('Stopping...', 'warning')
         
         def run_stop():
-            # Sử dụng docker-compose down -v để xóa containers + volumes
-            returncode, stdout, stderr = docker_compose_command('down', compose_file, self.append_log)
-            
+            # Stop containers but DO NOT remove volumes (preserve installed libraries and caches)
+            returncode, stdout, stderr = docker_compose_command('stop', compose_file, self.append_log)
+
             if returncode == 0:
-                self.append_log('✅ Docker containers stopped and removed', 'success')
-                self.append_log('🗑️ Volumes cleaned up', 'success')
+                self.append_log('✅ Docker containers stopped', 'success')
+                self.append_log('📦 Volumes preserved (libraries/cache kept)', 'info')
                 self.docker_status_badge.update_status('Stopped', 'default')
             else:
                 self.append_log(f'❌ Failed to stop containers', 'error')
