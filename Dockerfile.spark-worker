@@ -12,18 +12,30 @@ ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV PIP_DEFAULT_TIMEOUT=120
 
 # Use BuildKit cache for pip wheels. Install system deps, add pip conf and install Python packages from requirements.txt if present.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    apt-get update && apt-get install -y --no-install-recommends build-essential gcc libjpeg-dev zlib1g-dev libpng-dev ca-certificates && \
-    mkdir -p /etc && printf "[global]\nindex-url = ${PIP_INDEX_URL}\ntimeout = ${PIP_DEFAULT_TIMEOUT}\n" > /etc/pip.conf && \
+RUN --mount=type=cache,target=/root/.cache/pip bash -lc '\
+    set -euo pipefail; \
+    echo "[info] Checking for apt-get..."; \
+    if command -v apt-get >/dev/null 2>&1; then \
+        echo "[info] apt-get found — installing system packages..."; \
+        apt-get update && apt-get install -y --no-install-recommends build-essential gcc libjpeg-dev zlib1g-dev libpng-dev ca-certificates; \
+        APT_AVAILABLE=1; \
+    else \
+        echo "[warn] apt-get not found in base image — skipping system package install"; \
+        APT_AVAILABLE=0; \
+    fi; \
+    mkdir -p /etc; printf "[global]\nindex-url = ${PIP_INDEX_URL}\ntimeout = ${PIP_DEFAULT_TIMEOUT}\n" > /etc/pip.conf; \
     if [ -f /opt/requirements.txt ] && [ -s /opt/requirements.txt ]; then \
-        python3 -m pip install --upgrade pip setuptools wheel && \
+        echo "[info] Installing Python packages from requirements.txt"; \
+        python3 -m pip install --upgrade pip setuptools wheel; \
         python3 -m pip install --no-cache-dir -r /opt/requirements.txt --prefer-binary --timeout ${PIP_DEFAULT_TIMEOUT}; \
     else \
-        echo "No requirements.txt found or empty - skipping pip install"; \
-    fi && \
-    apt-get purge -y build-essential gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* /root/.cache/apt && \
-    # leave pip cache in /root/.cache/pip (mounted to pip-cache volume) for future builds
-    true
+        echo "[info] No requirements.txt found or empty - skipping pip install"; \
+    fi; \
+    if [ "$${APT_AVAILABLE:-0}" -eq 1 ]; then \
+        echo "[info] Cleaning up apt caches"; \
+        apt-get purge -y build-essential gcc || true; apt-get autoremove -y || true; rm -rf /var/lib/apt/lists/* /root/.cache/apt || true; \
+    fi; \
+    echo "[done] Dockerfile.spark-worker build step finished"'
 
 # Default workdir (no change to image behavior)
 WORKDIR /opt
