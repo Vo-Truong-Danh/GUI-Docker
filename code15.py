@@ -41,12 +41,7 @@ spark = SparkSession.builder \
 
 print("[2/10] Đọc dữ liệu từ HDFS/Storage...")
 possible_paths = [
-    "hdfs://localhost:9000/data/online_retail_II.csv",
-    "/tmp/online_retail_II.csv",
-    "/user/spark/data/online_retail_II.csv",
-    "file:///tmp/online_retail_II.csv",
-    "/home/jovyan/work/data/online_retail_II.csv",
-    "D:\\HUFI\\HK7\\BigData\\Project3\\Data\\online_retail_II.csv"
+    "hdfs://namenode:8020/input/online_retail_II.csv",
 ]
 
 df = None

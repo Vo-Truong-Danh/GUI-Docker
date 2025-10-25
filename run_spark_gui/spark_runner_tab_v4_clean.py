@@ -785,7 +785,7 @@ class SparkRunnerTabV4:
         self.thread_pool.submit(run_kill)
     
     def docker_start(self):
-        """Start Docker containers"""
+        """Start Docker containers using docker-compose up -d (tạo mới + start)"""
         compose_file = self.config.get('compose_file')
         
         # Validate compose file exists
@@ -799,119 +799,28 @@ class SparkRunnerTabV4:
             )
             return
         
-        self.append_log('🐳 Starting Docker containers...', 'header')
+        self.append_log('🐳 Starting Docker containers (docker-compose up -d)...', 'header')
         self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
+        self.append_log('💡 Tip: Sử dụng "up -d" để tạo mới containers, tránh mất thư viện', 'info')
         self.docker_status_badge.update_status('Starting...', 'info')
         
         def run_start():
-            # PROACTIVE CLEANUP: Check for existing containers BEFORE first attempt
-            self.append_log('🔍 Checking for existing containers...', 'info')
-            try:
-                # Get all container names
-                result = subprocess.run(
-                    'docker ps -a --format "{{.Names}}"',
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                
-                if result.returncode == 0 and result.stdout.strip():
-                    existing_containers = result.stdout.strip().split('\n')
-                    self.append_log(f'📋 Found {len(existing_containers)} existing containers', 'info')
-                    
-                    # Remove all existing containers proactively
-                    self.append_log('🧹 Proactive cleanup: removing all existing containers...', 'warning')
-                    for container in existing_containers:
-                        cmd = f'docker rm -f {container.strip()}'
-                        subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
-                    self.append_log('✅ All existing containers removed', 'success')
-                else:
-                    self.append_log('✅ No existing containers found', 'success')
-            except Exception as e:
-                self.append_log(f'⚠️ Cleanup check failed: {e}', 'warning')
+            # Luôn dọn dẹp trước khi up để tránh conflict
+            self.append_log('🧹 Cleaning up old containers first (down -v)...', 'warning')
+            docker_compose_command('down', compose_file, self.append_log)
+            self.append_log('✅ Cleanup completed', 'success')
             
-            # First attempt
+            # Chờ 2 giây để Docker hoàn tất cleanup
+            import time
+            time.sleep(2)
+            
+            # Chạy docker-compose up -d (tạo mới containers)
+            self.append_log('🚀 Creating and starting containers...', 'info')
             returncode, stdout, stderr = docker_compose_command('up', compose_file, self.append_log)
-            
-            # Check for name conflict - Auto clean and retry
-            if returncode != 0 and stderr and 'already in use' in stderr:
-                self.append_log('⚠️ Detected container name conflict', 'warning')
-                self.append_log('💡 Old containers still exist, auto-cleaning...', 'info')
-                
-                # Extract container names from error message using multiple patterns
-                container_names = set()  # Use set to avoid duplicates
-                
-                # Pattern 1: container name "/namenode"
-                pattern1 = re.findall(r'container name "(/[^"]+)"', stderr)
-                container_names.update(pattern1)
-                
-                # Pattern 2: Container namenode  Creating/Error
-                pattern2 = re.findall(r'Container\s+(\S+)\s+(?:Creating|Error)', stderr)
-                container_names.update(['/' + name for name in pattern2])
-                
-                # Pattern 3: From "already in use by container" context
-                # Look for container names before "Creating" or "Error"
-                lines = stderr.split('\n')
-                for line in lines:
-                    if 'Creating' in line or 'Error' in line:
-                        parts = line.strip().split()
-                        if len(parts) >= 2 and parts[0] == 'Container':
-                            container_names.add('/' + parts[1])
-                
-                container_names = list(container_names)  # Convert back to list
-                
-                if container_names:
-                    self.append_log(f'🔍 Found conflicting containers: {", ".join(container_names)}', 'info')
-                    self.append_log('🧹 Force removing containers...', 'warning')
-                    
-                    # Force remove each container
-                    for container in container_names:
-                        container_name = container.lstrip('/')  # Remove leading /
-                        cmd = f'docker rm -f {container_name}'
-                        self.append_log(f'💻 $ {cmd}', 'normal')
-                        
-                        try:
-                            result = subprocess.run(
-                                cmd,
-                                shell=True,
-                                capture_output=True,
-                                text=True,
-                                timeout=30
-                            )
-                            if result.returncode == 0:
-                                self.append_log(f'✅ Removed: {container_name}', 'success')
-                            else:
-                                self.append_log(f'⚠️ Failed to remove {container_name}: {result.stderr}', 'warning')
-                        except Exception as e:
-                            self.append_log(f'❌ Error removing {container_name}: {e}', 'error')
-                    
-                    # Also run compose down to clean networks/volumes
-                    self.append_log('🧹 Cleaning networks and volumes...', 'info')
-                    docker_compose_command('down', compose_file, self.append_log)
-                    
-                    self.append_log('✅ Cleanup completed', 'success')
-                    self.append_log('🔄 Retrying start...', 'info')
-                    
-                    # Retry start
-                    returncode, stdout, stderr = docker_compose_command('up', compose_file, self.append_log)
-                    
-                    if returncode == 0:
-                        self.append_log('✅ Docker containers started successfully', 'success')
-                        self.docker_status_badge.update_status('Running', 'success')
-                        return
-                    else:
-                        self.append_log(f'❌ Failed to start after cleanup', 'error')
-                        if stderr:
-                            self.append_log(f'Error: {stderr}', 'error')
-                else:
-                    self.append_log('❌ Could not extract container names from error', 'error')
-                
-                self.docker_status_badge.update_status('Error', 'error')
-                return
             
             if returncode == 0:
                 self.append_log('✅ Docker containers started successfully', 'success')
+                self.append_log('📦 All libraries preserved in fresh containers', 'success')
                 self.docker_status_badge.update_status('Running', 'success')
             else:
                 self.append_log(f'❌ Failed to start containers', 'error')
@@ -922,7 +831,7 @@ class SparkRunnerTabV4:
         self.thread_pool.submit(run_start)
     
     def docker_stop(self):
-        """Stop Docker containers"""
+        """Stop Docker containers using docker-compose down -v (xóa containers + volumes)"""
         compose_file = self.config.get('compose_file')
         
         # Validate compose file exists
@@ -936,15 +845,18 @@ class SparkRunnerTabV4:
             )
             return
         
-        self.append_log('🐳 Stopping Docker containers...', 'warning')
+        self.append_log('🐳 Stopping Docker containers (docker-compose down -v)...', 'warning')
         self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
+        self.append_log('💡 Tip: Sử dụng "down -v" để xóa hoàn toàn containers + volumes', 'info')
         self.docker_status_badge.update_status('Stopping...', 'warning')
         
         def run_stop():
-            returncode, stdout, stderr = docker_compose_command('stop', compose_file, self.append_log)
+            # Sử dụng docker-compose down -v để xóa containers + volumes
+            returncode, stdout, stderr = docker_compose_command('down', compose_file, self.append_log)
             
             if returncode == 0:
-                self.append_log('✅ Docker containers stopped', 'success')
+                self.append_log('✅ Docker containers stopped and removed', 'success')
+                self.append_log('🗑️ Volumes cleaned up', 'success')
                 self.docker_status_badge.update_status('Stopped', 'default')
             else:
                 self.append_log(f'❌ Failed to stop containers', 'error')
@@ -955,7 +867,7 @@ class SparkRunnerTabV4:
         self.thread_pool.submit(run_stop)
     
     def docker_restart(self):
-        """Restart Docker containers"""
+        """Restart Docker containers using docker-compose down + up (tạo mới hoàn toàn)"""
         compose_file = self.config.get('compose_file')
         
         # Validate compose file exists
@@ -969,20 +881,41 @@ class SparkRunnerTabV4:
             )
             return
         
-        self.append_log('🐳 Restarting Docker containers...', 'info')
+        self.append_log('🐳 Restarting Docker containers (down + up)...', 'info')
         self.append_log(f'📄 Using: {os.path.basename(compose_file)}', 'info')
+        self.append_log('💡 Tip: Down + Up để refresh hoàn toàn, giữ thư viện', 'info')
         self.docker_status_badge.update_status('Restarting...', 'info')
         
         def run_restart():
-            returncode, stdout, stderr = docker_compose_command('restart', compose_file, self.append_log)
+            # Bước 1: Down (xóa containers + volumes)
+            self.append_log('🛑 Step 1/2: Stopping and removing containers...', 'warning')
+            returncode_down, stdout_down, stderr_down = docker_compose_command('down', compose_file, self.append_log)
             
-            if returncode == 0:
-                self.append_log('✅ Docker containers restarted', 'success')
+            if returncode_down != 0:
+                self.append_log(f'❌ Failed to stop containers', 'error')
+                if stderr_down:
+                    self.append_log(f'Error: {stderr_down}', 'error')
+                self.docker_status_badge.update_status('Error', 'error')
+                return
+            
+            self.append_log('✅ Containers removed successfully', 'success')
+            
+            # Chờ 2 giây để Docker hoàn tất cleanup
+            import time
+            time.sleep(2)
+            
+            # Bước 2: Up (tạo mới + start)
+            self.append_log('🚀 Step 2/2: Creating and starting fresh containers...', 'info')
+            returncode_up, stdout_up, stderr_up = docker_compose_command('up', compose_file, self.append_log)
+            
+            if returncode_up == 0:
+                self.append_log('✅ Docker containers restarted successfully', 'success')
+                self.append_log('📦 Fresh containers with all libraries', 'success')
                 self.docker_status_badge.update_status('Running', 'success')
             else:
-                self.append_log(f'❌ Failed to restart containers', 'error')
-                if stderr:
-                    self.append_log(f'Error: {stderr}', 'error')
+                self.append_log(f'❌ Failed to start containers', 'error')
+                if stderr_up:
+                    self.append_log(f'Error: {stderr_up}', 'error')
                 self.docker_status_badge.update_status('Error', 'error')
         
         self.thread_pool.submit(run_restart)
