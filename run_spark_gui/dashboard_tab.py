@@ -62,9 +62,8 @@ class DashboardTab:
         info_text = tk.Label(
             info_frame,
             text="✅ Tự động khởi động server khi cần\n"
-                 "📍 Dashboard thường: http://localhost:8000/unified_dashboard.html\n"
-                 "🎨 Dashboard 3D: http://localhost:8000/unified_dashboard_3d.html\n"
-                 "💾 File dữ liệu: tmp/ml_analysis_summary.json & tmp/customer_rfm_3d.json",
+                 "� Dashboard 3D tương tác: http://localhost:8000/unified_dashboard.html\n"
+                 "💾 File dữ liệu: tmp/ml_analysis_summary.json & ảnh phân tích",
             font=('Segoe UI', 10),
             bg='#E6F2FF',
             fg='#004085',
@@ -91,10 +90,10 @@ class DashboardTab:
         )
         self.start_btn.pack(side=tk.LEFT, padx=5)
         
-        # Open Dashboard button
+        # Open Dashboard button (Combined - 2D + 3D)
         self.open_btn = tk.Button(
             button_frame,
-            text="🌐 Mở Dashboard",
+            text="📊 Mở Dashboard 3D",
             command=self.open_dashboard,
             font=('Segoe UI', 11, 'bold'),
             bg='#0969DA',
@@ -106,22 +105,6 @@ class DashboardTab:
             state=tk.DISABLED
         )
         self.open_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Open 3D Dashboard button
-        self.open_3d_btn = tk.Button(
-            button_frame,
-            text="🎨 Mở Dashboard 3D",
-            command=self.open_dashboard_3d,
-            font=('Segoe UI', 11, 'bold'),
-            bg='#9B59B6',
-            fg='white',
-            padx=20,
-            pady=10,
-            relief=tk.SOLID,
-            bd=1,
-            state=tk.DISABLED
-        )
-        self.open_3d_btn.pack(side=tk.LEFT, padx=5)
         
         # Stop Server button
         self.stop_btn = tk.Button(
@@ -273,8 +256,8 @@ class DashboardTab:
             self.append_log(f"📍 Dashboard URL: http://localhost:{self.port}/unified_dashboard.html", "success")
             self.append_log(f"📁 Thư mục phục vụ: {directory}", "info")
             self.append_log(f"📊 Dữ liệu từ: {directory}/tmp/", "info")
+            self.append_log(f"💡 Bấm nút 'Làm mới Dashboard' để mở trong trình duyệt", "info")
             self.open_btn.config(state=tk.NORMAL)
-            self.open_3d_btn.config(state=tk.NORMAL)
             
             # Serve requests (blocking)
             self.httpd.serve_forever()
@@ -286,30 +269,25 @@ class DashboardTab:
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
             self.open_btn.config(state=tk.DISABLED)
-            self.open_3d_btn.config(state=tk.DISABLED)
     
     def open_dashboard(self):
-        """Open dashboard in browser"""
-        url = f"http://localhost:{self.port}/unified_dashboard.html"
+        """Open unified dashboard (with 3D charts) in browser"""
+        if not self.server_running:
+            messagebox.showinfo("Info", "Server chưa chạy! Hãy khởi động server trước")
+            return
+            
+        # Add timestamp to force cache refresh
+        timestamp = int(time.time())
+        url = f"http://localhost:{self.port}/unified_dashboard.html?v={timestamp}"
         try:
-            self.append_log(f"🌐 Mở dashboard tại {url}...", "info")
-            webbrowser.open(url)
-            self.append_log("✅ Unified Dashboard mở trong trình duyệt", "success")
+            self.append_log(f"🌐 Mở dashboard 3D mới (với cache refresh)...", "info")
+            webbrowser.open(url, new=2)  # new=2: open in new tab
+            self.append_log("✅ Dashboard 3D mở trong trình duyệt (tab mới)", "success")
+            self.append_log("💡 Dashboard hiển thị biểu đồ 3D tương tác với Plotly.js", "info")
+            self.append_log(f"🔗 URL: {url}", "info")
         except Exception as e:
             self.append_log(f"❌ Lỗi mở dashboard: {str(e)}", "error")
             messagebox.showerror("Error", f"Không thể mở dashboard:\n{str(e)}")
-    
-    def open_dashboard_3d(self):
-        """Open 3D dashboard in browser"""
-        url = f"http://localhost:{self.port}/unified_dashboard_3d.html"
-        try:
-            self.append_log(f"🎨 Mở dashboard 3D tại {url}...", "info")
-            webbrowser.open(url)
-            self.append_log("✅ 3D Dashboard mở trong trình duyệt", "success")
-            self.append_log("💡 Dashboard 3D hiển thị RFM clustering với ECharts GL", "info")
-        except Exception as e:
-            self.append_log(f"❌ Lỗi mở dashboard 3D: {str(e)}", "error")
-            messagebox.showerror("Error", f"Không thể mở dashboard 3D:\n{str(e)}")
     
     def stop_server(self):
         """Stop HTTP server"""
@@ -330,7 +308,6 @@ class DashboardTab:
             self.append_log("✅ Server dừng thành công", "success")
             self.start_btn.config(state=tk.NORMAL)
             self.open_btn.config(state=tk.DISABLED)
-            self.open_3d_btn.config(state=tk.DISABLED)
         except Exception as e:
             self.append_log(f"❌ Lỗi dừng server: {str(e)}", "error")
     
@@ -340,18 +317,43 @@ class DashboardTab:
             self.stop_server()
     
     def refresh_dashboard(self):
-        """Refresh dashboard in browser (clear cache)"""
+        """Refresh dashboard data - instruct user to reload browser"""
         if not self.server_running:
-            messagebox.showinfo("Info", "Server chưa chạy! Hãy khởi động trước")
+            messagebox.showinfo("Info", "Server chưa chạy! Hãy khởi động server trước")
             return
         
-        url = f"http://localhost:{self.port}/unified_dashboard.html?nocache={int(time.time())}"
         try:
-            self.append_log("🔄 Làm mới dashboard trong browser...", "info")
-            webbrowser.open(url)
-            self.append_log("✅ Dashboard đã được làm mới", "success")
+            self.append_log("🔄 Làm mới dữ liệu dashboard...", "info")
+            
+            # Check if data files exist
+            project_root = str(Path(__file__).parent.parent)
+            tmp_dir = os.path.join(project_root, "tmp")
+            json_file = os.path.join(tmp_dir, "ml_analysis_summary.json")
+            
+            if os.path.exists(json_file):
+                mod_time = datetime.fromtimestamp(os.path.getmtime(json_file))
+                self.append_log(f"📊 Dữ liệu mới nhất: {mod_time.strftime('%H:%M:%S')}", "success")
+            else:
+                self.append_log("⚠️ Chưa có file dữ liệu JSON", "warning")
+            
+            # Instruct user how to refresh
+            self.append_log("✅ Để xem dữ liệu mới:", "success")
+            self.append_log("   1️⃣ Vào tab dashboard đang mở trong browser", "info")
+            self.append_log("   2️⃣ Nhấn F5 hoặc Ctrl+R để reload trang", "info")
+            self.append_log(f"📍 URL: http://localhost:{self.port}/unified_dashboard.html", "info")
+            
+            messagebox.showinfo(
+                "Làm mới Dashboard", 
+                "✅ Dữ liệu đã sẵn sàng!\n\n"
+                "📌 Để xem dữ liệu mới:\n"
+                "  • Vào tab dashboard trong browser\n"
+                "  • Nhấn F5 hoặc Ctrl+R để reload\n\n"
+                f"🌐 URL: http://localhost:{self.port}/unified_dashboard.html"
+            )
+            
         except Exception as e:
             self.append_log(f"❌ Lỗi: {str(e)}", "error")
+            messagebox.showerror("Error", f"Lỗi làm mới:\n{str(e)}")
     
     def copy_images_from_container(self):
         """Copy ML result images from Docker container to host machine"""
