@@ -62,8 +62,9 @@ class DashboardTab:
         info_text = tk.Label(
             info_frame,
             text="✅ Tự động khởi động server khi cần\n"
-                 "📍 Truy cập: http://localhost:8000/unified_dashboard.html\n"
-                 "💾 File dữ liệu: tmp/ml_analysis_summary.json",
+                 "📍 Dashboard thường: http://localhost:8000/unified_dashboard.html\n"
+                 "🎨 Dashboard 3D: http://localhost:8000/unified_dashboard_3d.html\n"
+                 "💾 File dữ liệu: tmp/ml_analysis_summary.json & tmp/customer_rfm_3d.json",
             font=('Segoe UI', 10),
             bg='#E6F2FF',
             fg='#004085',
@@ -105,6 +106,22 @@ class DashboardTab:
             state=tk.DISABLED
         )
         self.open_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Open 3D Dashboard button
+        self.open_3d_btn = tk.Button(
+            button_frame,
+            text="🎨 Mở Dashboard 3D",
+            command=self.open_dashboard_3d,
+            font=('Segoe UI', 11, 'bold'),
+            bg='#9B59B6',
+            fg='white',
+            padx=20,
+            pady=10,
+            relief=tk.SOLID,
+            bd=1,
+            state=tk.DISABLED
+        )
+        self.open_3d_btn.pack(side=tk.LEFT, padx=5)
         
         # Stop Server button
         self.stop_btn = tk.Button(
@@ -257,6 +274,7 @@ class DashboardTab:
             self.append_log(f"📁 Thư mục phục vụ: {directory}", "info")
             self.append_log(f"📊 Dữ liệu từ: {directory}/tmp/", "info")
             self.open_btn.config(state=tk.NORMAL)
+            self.open_3d_btn.config(state=tk.NORMAL)
             
             # Serve requests (blocking)
             self.httpd.serve_forever()
@@ -268,6 +286,7 @@ class DashboardTab:
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
             self.open_btn.config(state=tk.DISABLED)
+            self.open_3d_btn.config(state=tk.DISABLED)
     
     def open_dashboard(self):
         """Open dashboard in browser"""
@@ -279,6 +298,18 @@ class DashboardTab:
         except Exception as e:
             self.append_log(f"❌ Lỗi mở dashboard: {str(e)}", "error")
             messagebox.showerror("Error", f"Không thể mở dashboard:\n{str(e)}")
+    
+    def open_dashboard_3d(self):
+        """Open 3D dashboard in browser"""
+        url = f"http://localhost:{self.port}/unified_dashboard_3d.html"
+        try:
+            self.append_log(f"🎨 Mở dashboard 3D tại {url}...", "info")
+            webbrowser.open(url)
+            self.append_log("✅ 3D Dashboard mở trong trình duyệt", "success")
+            self.append_log("💡 Dashboard 3D hiển thị RFM clustering với ECharts GL", "info")
+        except Exception as e:
+            self.append_log(f"❌ Lỗi mở dashboard 3D: {str(e)}", "error")
+            messagebox.showerror("Error", f"Không thể mở dashboard 3D:\n{str(e)}")
     
     def stop_server(self):
         """Stop HTTP server"""
@@ -299,6 +330,7 @@ class DashboardTab:
             self.append_log("✅ Server dừng thành công", "success")
             self.start_btn.config(state=tk.NORMAL)
             self.open_btn.config(state=tk.DISABLED)
+            self.open_3d_btn.config(state=tk.DISABLED)
         except Exception as e:
             self.append_log(f"❌ Lỗi dừng server: {str(e)}", "error")
     

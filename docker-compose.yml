@@ -18,8 +18,8 @@ services:
       - spark-master
     environment:
       - SPARK_MASTER=spark://spark-master:7077
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=12
+      - SPARK_WORKER_MEMORY=12G
     ports:
       - "8082:8081"
     networks:

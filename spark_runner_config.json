@@ -8,14 +8,16 @@
   "delete_archive_after_extract": true,
   "compose_file": "D:/BaiTapSinhVien/TH BigData/GUI-Docker/docker-compose.yml",
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code15.py",
+    "D:/Downloads/cod14.py",
+    "D:/Downloads/code13.py",
+    "D:/Downloads/cod12.py",
+    "D:/Downloads/code7.py",
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/run_spark_gui/code_v2_with_3d_export.py",
     "D:/Downloads/code11.py",
     "D:/Downloads/code10.py",
     "D:/Downloads/code9.py",
-    "D:/Downloads/code8.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan04/checkspammail - Copy.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan04/mail_topic_classifier_csv.py",
-    "D:/BaiTapSinhVien/TH BigData/Tuan04/checkspammail.py",
-    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code7.py"
+    "D:/Downloads/code8.py"
   ],
   "hdfs_path": "/input",
   "hdfs_port": "8020",

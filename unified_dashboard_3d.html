@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Data Analytics Dashboard - 3D Visualization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <style>
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .dashboard-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+        pre::-webkit-scrollbar { height: 8px; }
+        pre::-webkit-scrollbar-track { background: #2d3748; }
+        pre::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        pre::-webkit-scrollbar-thumb:hover { background: #718096; }
+        .section-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2rem;
+            color: #667eea;
+        }
+        .error {
+            background: #fee;
+            border: 2px solid #f88;
+            padding: 20px;
+            border-radius: 8px;
+            color: #c33;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="dashboard-card">
+            <h1 class="text-4xl font-bold text-center mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                📊 Big Data Analytics Dashboard
+            </h1>
+            <p class="text-center text-gray-600 text-lg">Machine Learning & 3D Visualization</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div id="stats-container" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="loading">Đang tải dữ liệu...</div>
+        </div>
+
+        <!-- 3D Visualization Section -->
+        <div class="dashboard-card">
+            <h2 class="section-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: #667eea;">3d_rotation</span>
+                Trực quan hóa Phân khúc Khách hàng 3D (RFM)
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Left: 3D Chart -->
+                <div class="lg:col-span-7">
+                    <div class="bg-gray-800 rounded-lg p-4" style="min-height: 600px;">
+                        <div id="echarts-3d-scatter" style="width: 100%; height: 580px;"></div>
+                    </div>
+                </div>
+
+                <!-- Right: Insights & Code -->
+                <div class="lg:col-span-5 space-y-6">
+                    <!-- Insights Card -->
+                    <div class="bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-lg border-2 border-blue-200">
+                        <div class="flex items-center mb-4">
+                            <span class="material-symbols-outlined text-3xl text-blue-600 mr-3">insights</span>
+                            <h3 class="text-xl font-semibold text-gray-800">Hiểu biết từ Biểu đồ</h3>
+                        </div>
+                        <ul class="space-y-2 text-sm text-gray-700">
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span>Mỗi điểm đại diện cho một khách hàng, được tô màu theo phân khúc.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span><strong class="text-green-600">Khách hàng Vàng:</strong> Recency thấp, Frequency & Monetary cao.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span><strong class="text-gray-600">Khách hàng đã mất:</strong> Recency cao, Frequency & Monetary thấp.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span><strong class="text-blue-600">Khách hàng Trung thành:</strong> Các chỉ số cân bằng, mua sắm đều đặn.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span>Giúp trực quan hóa sự tách biệt "tự nhiên" của các nhóm khách hàng.</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Quote Card -->
+                    <div class="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border-l-4 border-green-500">
+                        <blockquote class="text-sm text-gray-700 italic">
+                            "Biểu đồ 3D cung cấp cái nhìn toàn diện về cách các cụm khách hàng được phân chia trong không gian đặc trưng ba chiều: <strong>Recency</strong> (ngày mua gần nhất), <strong>Frequency</strong> (tần suất mua), và <strong>Monetary</strong> (tổng chi tiêu)."
+                        </blockquote>
+                    </div>
+
+                    <!-- Code Snippet Card -->
+                    <div class="bg-gray-900 p-4 rounded-lg">
+                        <div class="flex items-center mb-3">
+                            <span class="material-symbols-outlined text-2xl text-gray-400 mr-2">code</span>
+                            <h3 class="text-base font-semibold text-gray-300">Python: K-Means Clustering</h3>
+                        </div>
+                        <pre class="text-xs text-gray-300 font-mono overflow-auto rounded-md p-3 bg-black/30" style="max-height: 300px;"><code># Tạo RFM features
+customer_rfm = df_clean.groupBy(customer_col).agg(
+    datediff(_max("InvoiceDate"), _min("InvoiceDate")).alias("Recency"),
+    count("Invoice").alias("Frequency"),
+    _sum("Revenue").alias("Monetary")
+)
+
+# Chuẩn bị features cho clustering
+assembler = VectorAssembler(
+    inputCols=["Recency", "Frequency", "Monetary"],
+    outputCol="features_raw"
+)
+
+# Chuẩn hóa dữ liệu
+scaler = StandardScaler(
+    inputCol="features_raw",
+    outputCol="features",
+    withStd=True,
+    withMean=True
+)
+
+# K-Means Clustering
+kmeans = KMeans(k=3, seed=42, featuresCol="features")
+model = kmeans.fit(scaled_data)
+
+# Dự đoán clusters
+customer_segments = model.transform(scaled_data)
+
+# Xuất kết quả
+customer_segments.select(
+    "Customer_ID", "Recency", "Frequency", 
+    "Monetary", "prediction"
+).write.json("tmp/customer_rfm_3d.json")</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Segments Table -->
+        <div class="dashboard-card">
+            <h2 class="section-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: #667eea;">group</span>
+                Phân khúc Khách hàng
+            </h2>
+            <div id="segments-table" class="overflow-x-auto">
+                <div class="loading">Đang tải dữ liệu phân khúc...</div>
+            </div>
+        </div>
+
+        <!-- ML Analysis Images -->
+        <div class="dashboard-card">
+            <h2 class="section-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; color: #667eea;">analytics</span>
+                Kết quả Phân tích ML
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_1_customer_clustering.png" alt="Customer Clustering" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Customer Clustering</h3>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_2_regression_analysis.png" alt="Regression Analysis" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Regression Analysis</h3>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_3_product_clustering.png" alt="Product Clustering" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Product Clustering</h3>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_4_comprehensive_dashboard.png" alt="Comprehensive Dashboard" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Comprehensive Dashboard</h3>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_5_advanced_analytics.png" alt="Advanced Analytics" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Advanced Analytics</h3>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden shadow-lg">
+                    <img src="tmp/ml_result_6_trends_comparison.png" alt="Trends Comparison" class="w-full h-auto">
+                    <div class="p-4 bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Trends & Comparison</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="dashboard-card text-center">
+            <p class="text-gray-600">
+                🚀 Powered by <strong>PySpark</strong> & <strong>ECharts</strong> | 
+                Generated with ❤️ by Big Data Analytics Team
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Last updated: <span id="last-update">Loading...</span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Load data and initialize dashboard
+        let analysisData = null;
+        let rfmData = null;
+
+        // Initialize 3D chart
+        function init3DChart(data) {
+            const chartDom = document.getElementById('echarts-3d-scatter');
+            const myChart = echarts.init(chartDom);
+            
+            // Prepare data
+            const chartData = data.map(item => [
+                item.Recency || 0,
+                item.Frequency || 0,
+                item.Monetary || 0,
+                item.prediction || item.cluster || 0
+            ]);
+
+            // Define cluster colors and labels
+            const clusterInfo = {
+                0: { name: 'Khách hàng Vàng', color: '#2ECC71' },
+                1: { name: 'Khách hàng đã mất', color: '#95A5A6' },
+                2: { name: 'Khách hàng Trung thành', color: '#3498DB' }
+            };
+
+            // Get unique clusters
+            const clusters = [...new Set(chartData.map(d => d[3]))];
+            const pieces = clusters.map(c => ({
+                value: c,
+                label: clusterInfo[c]?.name || `Cụm ${c}`,
+                color: clusterInfo[c]?.color || '#666'
+            }));
+
+            const option = {
+                tooltip: {
+                    formatter: function (params) {
+                        const data = params.data;
+                        const clusterName = clusterInfo[data[3]]?.name || `Cụm ${data[3]}`;
+                        return `<b>${clusterName}</b><br/>
+                                Recency: ${data[0].toFixed(0)} ngày<br/>
+                                Frequency: ${data[1].toFixed(0)} lần<br/>
+                                Monetary: £${data[2].toFixed(2)}`;
+                    }
+                },
+                backgroundColor: 'transparent',
+                visualMap: {
+                    show: true,
+                    type: 'piecewise',
+                    dimension: 3,
+                    pieces: pieces,
+                    textStyle: { color: '#fff', fontSize: 12 },
+                    bottom: 20,
+                    left: 20,
+                    itemGap: 10,
+                },
+                grid3D: {
+                    axisLine: { lineStyle: { color: '#ccc' } },
+                    axisPointer: { lineStyle: { color: '#ffbd67' } },
+                    viewControl: {
+                        autoRotate: true,
+                        autoRotateSpeed: 8,
+                        distance: 180,
+                        alpha: 25,
+                        beta: 40
+                    },
+                    boxWidth: 100,
+                    boxHeight: 100,
+                    boxDepth: 100
+                },
+                xAxis3D: { 
+                    name: 'Recency (ngày)', 
+                    type: 'value', 
+                    nameTextStyle: { color: '#fff', fontSize: 14 }
+                },
+                yAxis3D: { 
+                    name: 'Frequency (lần)', 
+                    type: 'value', 
+                    nameTextStyle: { color: '#fff', fontSize: 14 }
+                },
+                zAxis3D: { 
+                    name: 'Monetary (£)', 
+                    type: 'value', 
+                    nameTextStyle: { color: '#fff', fontSize: 14 }
+                },
+                series: [{
+                    name: 'Khách hàng',
+                    type: 'scatter3D',
+                    data: chartData,
+                    symbolSize: 6,
+                    emphasis: {
+                        label: { show: false }
+                    },
+                    itemStyle: {
+                        borderWidth: 0.5,
+                        borderColor: 'rgba(255,255,255,0.5)',
+                        opacity: 0.9
+                    }
+                }]
+            };
+
+            myChart.setOption(option);
+            
+            // Resize handler
+            window.addEventListener('resize', function() {
+                myChart.resize();
+            });
+        }
+
+        // Load RFM data for 3D chart
+        async function loadRFMData() {
+            try {
+                const response = await fetch('tmp/customer_rfm_3d.json');
+                if (!response.ok) {
+                    throw new Error('RFM data not found');
+                }
+                const text = await response.text();
+                
+                // Parse JSON lines format (Spark output)
+                const lines = text.trim().split('\n');
+                rfmData = lines.map(line => JSON.parse(line));
+                
+                console.log(`✅ Loaded ${rfmData.length} customer records for 3D visualization`);
+                console.log('📊 Data source: tmp/customer_rfm_3d.json (REAL DATA)');
+                init3DChart(rfmData);
+            } catch (error) {
+                console.error('❌ Could not load RFM data:', error);
+                
+                // Display error message instead of using sample data
+                const chartContainer = document.getElementById('echarts-3d-scatter');
+                chartContainer.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: white; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+                        <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 10px;">
+                            Không tìm thấy dữ liệu RFM!
+                        </div>
+                        <div style="font-size: 1rem; opacity: 0.8; margin-bottom: 20px;">
+                            File: <code style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">tmp/customer_rfm_3d.json</code>
+                        </div>
+                        <div style="font-size: 0.95rem; opacity: 0.7; max-width: 500px; line-height: 1.6;">
+                            <p style="margin-bottom: 10px;">📝 <strong>Cách khắc phục:</strong></p>
+                            <ol style="text-align: left; margin-left: 20px;">
+                                <li>Chạy file <code>code7.py</code> hoặc <code>code_v2_with_3d_export.py</code></li>
+                                <li>Đợi cho đến khi xuất file <code>customer_rfm_3d.json</code></li>
+                                <li>Refresh lại trang này (F5)</li>
+                            </ol>
+                        </div>
+                        <div style="margin-top: 20px; padding: 15px; background: rgba(255,100,100,0.2); border-radius: 8px; font-size: 0.9rem;">
+                            <strong>Error:</strong> ${error.message}
+                        </div>
+                    </div>
+                `;
+                
+                // Also update stats to show error
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="col-span-4 error">
+                        <strong>⚠️ Chưa có dữ liệu phân tích!</strong><br>
+                        Vui lòng chạy <code>code7.py</code> để generate dữ liệu trước.
+                    </div>
+                `;
+            }
+        }
+
+        // Load analysis summary
+        async function loadAnalysisData() {
+            try {
+                const response = await fetch('tmp/ml_analysis_summary.json');
+                if (!response.ok) {
+                    throw new Error('Analysis data not found');
+                }
+                analysisData = await response.json();
+                
+                renderStatsCards();
+                renderSegmentsTable();
+                updateLastUpdate();
+            } catch (error) {
+                console.error('Error loading analysis data:', error);
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="col-span-4 error">
+                        <h3 class="font-bold mb-2">⚠️ Không thể tải dữ liệu phân tích</h3>
+                        <p>Vui lòng chạy code7.py để tạo dữ liệu phân tích.</p>
+                        <p class="mt-2 text-sm">Lỗi: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render stats cards
+        function renderStatsCards() {
+            if (!analysisData) return;
+            
+            const stats = [
+                {
+                    label: 'Tổng Doanh Thu',
+                    value: `$${(analysisData.total_revenue || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+                    icon: 'payments'
+                },
+                {
+                    label: 'Tổng Giao Dịch',
+                    value: (analysisData.total_transactions || 0).toLocaleString(),
+                    icon: 'receipt_long'
+                },
+                {
+                    label: 'Giá Trị TB/Đơn',
+                    value: `$${(analysisData.avg_order_value || 0).toFixed(2)}`,
+                    icon: 'trending_up'
+                },
+                {
+                    label: 'ML Accuracy (R²)',
+                    value: (analysisData.ml_models?.linear_regression?.r2_score || 0).toFixed(3),
+                    icon: 'model_training'
+                }
+            ];
+
+            const html = stats.map(stat => `
+                <div class="stat-card">
+                    <span class="material-symbols-outlined text-4xl">${stat.icon}</span>
+                    <div class="stat-value">${stat.value}</div>
+                    <div class="stat-label">${stat.label}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('stats-container').innerHTML = html;
+        }
+
+        // Render segments table
+        function renderSegmentsTable() {
+            if (!analysisData || !analysisData.customer_segments) {
+                document.getElementById('segments-table').innerHTML = '<p class="text-gray-500">Không có dữ liệu phân khúc</p>';
+                return;
+            }
+
+            const segments = analysisData.customer_segments;
+            const html = `
+                <table class="min-w-full bg-white border border-gray-300">
+                    <thead class="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                        <tr>
+                            <th class="px-6 py-3 text-left">Phân khúc</th>
+                            <th class="px-6 py-3 text-right">Số Khách hàng</th>
+                            <th class="px-6 py-3 text-right">TB Recency (ngày)</th>
+                            <th class="px-6 py-3 text-right">TB Frequency</th>
+                            <th class="px-6 py-3 text-right">TB Monetary (£)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${segments.map((seg, idx) => `
+                            <tr class="${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 transition">
+                                <td class="px-6 py-4 font-semibold text-gray-800">${seg.Segment || seg.segment || 'N/A'}</td>
+                                <td class="px-6 py-4 text-right">${(seg.Count || seg.count || 0).toLocaleString()}</td>
+                                <td class="px-6 py-4 text-right">${(seg.Avg_Recency || seg.avg_recency || 0).toFixed(1)}</td>
+                                <td class="px-6 py-4 text-right">${(seg.Avg_Frequency || seg.avg_frequency || 0).toFixed(1)}</td>
+                                <td class="px-6 py-4 text-right">£${(seg.Avg_Monetary || seg.avg_monetary || 0).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('segments-table').innerHTML = html;
+        }
+
+        // Update last update time
+        function updateLastUpdate() {
+            const timestamp = analysisData?.timestamp || new Date().toISOString();
+            document.getElementById('last-update').textContent = new Date(timestamp).toLocaleString('vi-VN');
+        }
+
+        // Initialize dashboard
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('Dashboard initializing...');
+            loadRFMData();
+            loadAnalysisData();
+        });
+    </script>
+</body>
+</html>
