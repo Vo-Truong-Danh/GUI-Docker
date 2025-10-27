@@ -5,11 +5,11 @@
 tkinter-tooltip>=0.0.0
 
 # Data processing
-PyYAML>=6.0
-pandas>=1.5.0
+PyYAML==5.3.1
+pandas==1.3.5
 
 # AI API (Optional)
-google-generativeai>=0.3.0
+# google-generativeai>=0.3.0  # Không hỗ trợ Python 3.7, đã comment để tránh lỗi build Docker
 openai>=1.0.0
 anthropic>=0.18.0
 
@@ -19,3 +19,13 @@ python-dotenv>=1.0.0
 
 # Build tools
 pyinstaller>=5.13.0
+
+# Các thư viện Python phổ biến cho Spark worker
+numpy
+scipy
+matplotlib
+scikit-learn
+pillow
+lxml
+psycopg2
+opencv-python

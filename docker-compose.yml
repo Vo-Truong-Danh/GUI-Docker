@@ -1,61 +1,82 @@
 services:
+  # =========================
+  # HDFS NAMENODE
+  # =========================
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    environment:
+      - CLUSTER_NAME=bd-cluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"   # Web UI NameNode
+      - "8020:8020"   # RPC fs.defaultFS
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - ./input:/input   # để mình put data vào HDFS sau này
+
+  # =========================
+  # HDFS DATANODE
+  # =========================
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    depends_on:
+      - namenode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9864:9864"   # Datanode web UI (chỉ 1 datanode, nên ok)
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+
+  # =========================
+  # SPARK MASTER
+  # =========================
   spark-master:
     image: bde2020/spark-master:3.3.0-hadoop3.3
     container_name: spark-master
-    restart: unless-stopped
+    restart: always
+    depends_on:
+      - namenode
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
     ports:
-      - "8081:8080"
-      - "7077:7077"
-    networks:
-      - bigdata_network
+      - "7077:7077"   # Spark master URL từ host: spark://localhost:7077
+      - "8080:8080"   # Spark Master Web UI
+      - "4040:4040"   # Spark driver UI (app web UI)
+    volumes:
+      - ./spark-events:/tmp/spark-events
 
+  # =========================
+  # SPARK WORKER (SCALE ĐƯỢC)
+  # =========================
   spark-worker:
-    image: bde2020/spark-worker:3.3.0-hadoop3.3
-    container_name: spark-worker
-    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-worker
+    image: my-spark-worker:latest
+    # KHÔNG đặt container_name ở đây để cho phép scale
+    restart: always
     depends_on:
       - spark-master
     environment:
       - SPARK_MASTER=spark://spark-master:7077
-    ports:
-      - "8082:8081"
+      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_MEMORY=8g
+    # KHÔNG expose port 8081 cố định nữa, vì nhiều worker sẽ đụng cổng
     volumes:
-      - pip-cache:/root/.cache/pip
-    networks:
-      - bigdata_network
-
-  namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
-    container_name: namenode
-    ports:
-      - "9870:9870"
-      - "8020:8020"
-    volumes:
-      - hadoop_namenode:/hadoop/dfs/name
-    environment:
-      - CLUSTER_NAME=test
-    networks:
-      - bigdata_network
-
-  datanode:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
-    container_name: datanode
-    depends_on:
-      - namenode
-    volumes:
-      - hadoop_datanode:/hadoop/dfs/data
-    environment:
-      - SERVICE_PRECONDITION=namenode:9870
-      # DÒNG SAU ĐÂY ĐÃ ĐƯỢC THÊM VÀO ĐỂ SỬA LỖI
-      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
-    networks:
-      - bigdata_network
-
-networks:
-  bigdata_network:
-    driver: bridge
+      - ./spark-events:/tmp/spark-events
 
 volumes:
   hadoop_namenode:
   hadoop_datanode:
-  pip-cache:

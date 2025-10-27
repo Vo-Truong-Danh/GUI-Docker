@@ -461,16 +461,41 @@ class SparkRunnerTabV4:
         config_card.pack(fill=tk.X, pady=(0, 12))
         cc = config_card.get_content()
         
-        # Container name (compact)
+        # Container name (with dropdown and refresh)
         tk.Label(cc, text='Container:', font=('Segoe UI', 9),
                 bg='#FFFFFF', fg='#57606A').pack(anchor='w', pady=(0, 4))
-        
+
+        container_row = tk.Frame(cc, bg='#FFFFFF')
+        container_row.pack(fill=tk.X, pady=(0, 8))
+
         self.container_var = tk.StringVar(value=self.config['container'])
-        cont_entry = tk.Entry(cc, textvariable=self.container_var,
-                             font=('Segoe UI', 9), bg='#FFFFFF',
-                             relief=tk.SOLID, borderwidth=1,
-                             highlightthickness=1, highlightbackground='#D0D7DE')
-        cont_entry.pack(fill=tk.X, ipady=4, pady=(0, 8))
+        self.container_combo = ttk.Combobox(container_row, textvariable=self.container_var, font=('Segoe UI', 9), state='readonly')
+        self.container_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        def refresh_containers():
+            import subprocess
+            try:
+                result = subprocess.check_output(
+                    'docker ps --filter "name=spark-worker" --format "{{.Names}}"', shell=True, text=True
+                )
+                containers = [c for c in result.strip().splitlines() if c]
+                if containers:
+                    self.container_combo['values'] = containers
+                    # Nếu container_var không nằm trong list thì chọn cái đầu tiên
+                    if self.container_var.get() not in containers:
+                        self.container_var.set(containers[0])
+                else:
+                    self.container_combo['values'] = ['(No spark-worker running)']
+                    self.container_var.set('')
+            except Exception as e:
+                self.container_combo['values'] = ['(Error listing containers)']
+                self.container_var.set('')
+
+        refresh_btn = CleanButton(container_row, 'Refresh', 'outline', refresh_containers, 1)
+        refresh_btn.pack(side=tk.LEFT, padx=(6,0))
+
+        # Tự động refresh khi mở tab
+        refresh_containers()
         
         # Spark master (compact)
         tk.Label(cc, text='Master:', font=('Segoe UI', 9),

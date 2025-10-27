@@ -1,26 +1,66 @@
-# syntax = docker/dockerfile:1.4
 FROM bde2020/spark-worker:3.3.0-hadoop3.3
 
 # Set workdir
 WORKDIR /opt
 
-# Copy requirements file (if missing, build will continue but no extra packages)
-COPY requirements.txt /opt/requirements.txt
+# Copy requirements file for Docker (Python 3.7 compatible)
+COPY requirements-docker.txt /opt/requirements.txt
 
 # Set pip mirror (Tsinghua) and increase timeout
 ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV PIP_DEFAULT_TIMEOUT=120
 
-# Use BuildKit cache for pip wheels. Install system deps, add pip conf and install Python packages from requirements.txt if present.
-RUN --mount=type=cache,target=/root/.cache/pip bash -lc '\
+# Install system deps, add pip conf and install Python packages from requirements.txt if present.
+RUN bash -lc '\
     set -euo pipefail; \
     echo "[info] Checking for apt-get..."; \
     if command -v apt-get >/dev/null 2>&1; then \
         echo "[info] apt-get found — installing system packages..."; \
-        apt-get update && apt-get install -y --no-install-recommends build-essential gcc libjpeg-dev zlib1g-dev libpng-dev ca-certificates; \
+        apt-get update && apt-get install -y --no-install-recommends \
+            build-essential \
+            python3-dev \
+            gfortran \
+            libopenblas-dev \
+            liblapack-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libjpeg-dev \
+            libxml2-dev \
+            libxslt1-dev \
+            libpq-dev \
+            libtiff-dev \
+            liblcms2-dev \
+            libwebp-dev \
+            tcl-dev \
+            tk-dev \
+            zlib1g-dev \
+            ca-certificates; \
         APT_AVAILABLE=1; \
     else \
-        echo "[warn] apt-get not found in base image — skipping system package install"; \
+        echo "[warn] apt-get not found in base image — thử cài build tools bằng apk"; \
+        if command -v apk >/dev/null 2>&1; then \
+            apk update && apk add --no-cache \
+                build-base \
+                python3-dev \
+                gfortran \
+                openblas-dev \
+                freetype-dev \
+                libpng-dev \
+                libjpeg-turbo-dev \
+                libxml2-dev \
+                libxslt-dev \
+                postgresql-dev \
+                tiff-dev \
+                lcms2-dev \
+                libwebp-dev \
+                tcl-dev \
+                tk-dev \
+                zlib-dev \
+                ca-certificates; \
+            echo "[info] Đã cài build tools bằng apk cho Alpine"; \
+        else \
+            echo "[warn] Không tìm thấy apk, không thể cài build tools cho Alpine"; \
+        fi; \
         APT_AVAILABLE=0; \
     fi; \
     mkdir -p /etc; printf "[global]\nindex-url = ${PIP_INDEX_URL}\ntimeout = ${PIP_DEFAULT_TIMEOUT}\n" > /etc/pip.conf; \

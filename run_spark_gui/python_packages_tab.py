@@ -76,15 +76,20 @@ class PythonPackagesTab:
         container_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(container_frame, text="Container:", width=15).pack(side=tk.LEFT)
-        self.container_var = tk.StringVar(value="spark-worker")
-        container_combo = ttk.Combobox(
+        self.container_var = tk.StringVar()
+
+        # Thêm lựa chọn "Tất cả spark-worker"
+        self.container_combo = ttk.Combobox(
             container_frame,
             textvariable=self.container_var,
-            values=["spark-worker", "spark-master", "jupyter-notebook"],
+            values=["Tất cả spark-worker"],
             state="readonly",
             width=25
         )
-        container_combo.pack(side=tk.LEFT, padx=(5, 10))
+        self.container_combo.pack(side=tk.LEFT, padx=(5, 10))
+
+        # Tự động refresh container list khi khởi tạo
+        self.refresh_containers()
         
         # Refresh button
         refresh_btn = ttk.Button(
@@ -221,10 +226,10 @@ class PythonPackagesTab:
         # ========== RIGHT COLUMN: Output Console ==========
         right_column = ttk.Frame(main_container)
         right_column.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
-        
+
         output_frame = ttk.LabelFrame(right_column, text="📝 Kết quả cài đặt", padding=10)
         output_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         # Output text with scrollbar - Full height cho right column
         self.output_text = scrolledtext.ScrolledText(
             output_frame,
@@ -235,11 +240,14 @@ class PythonPackagesTab:
             wrap=tk.WORD
         )
         self.output_text.pack(fill=tk.BOTH, expand=True)
-        
-        # Log initial message
+
+        # Log initial message (sau khi đã khởi tạo self.output_text)
         self.log_output("✅ Tab quản lý thư viện Python đã sẵn sàng\n")
         self.log_output("💡 Tip: Chọn container, nhập tên thư viện và nhấn 'Cài đặt'\n")
-        self.log_output(f"📝 Lệnh mẫu: docker exec spark-worker python3 -m pip install --no-cache-dir matplotlib\n\n")
+        def show_sample_cmd():
+            container = self.container_var.get() or 'spark-worker'
+            self.log_output(f"📝 Lệnh mẫu: docker exec {container} python3 -m pip install --no-cache-dir matplotlib\n\n")
+        self.parent.after(500, show_sample_cmd)
     
     def on_popular_selected(self, event=None):
         """Khi chọn thư viện phổ biến"""
@@ -249,12 +257,16 @@ class PythonPackagesTab:
     
     def log_output(self, message, tag=None):
         """Ghi log ra console"""
-        self.output_text.insert(tk.END, message)
-        if tag:
-            # Apply color tags if needed
+        if hasattr(self, 'output_text') and self.output_text:
+            self.output_text.insert(tk.END, message)
+            if tag:
+                # Apply color tags if needed
+                pass
+            self.output_text.see(tk.END)
+            self.output_text.update_idletasks()
+        else:
+            # Nếu output_text chưa khởi tạo, bỏ qua log để tránh crash
             pass
-        self.output_text.see(tk.END)
-        self.output_text.update_idletasks()
     
     def update_progress(self, percent, status_text=""):
         """Cập nhật progress bar"""
@@ -296,52 +308,37 @@ class PythonPackagesTab:
     def refresh_containers(self):
         """Làm mới danh sách containers"""
         self.log_output("🔄 Đang kiểm tra Docker containers...\n")
-        
         def check_containers():
             try:
                 result = subprocess.run(
-                    ['docker', 'ps', '--format', '{{.Names}}'],
+                    ['docker', 'ps', '--filter', 'name=spark-worker', '--format', '{{.Names}}'],
                     capture_output=True,
                     text=True,
                     encoding='utf-8',
                     errors='replace',
                     timeout=10
                 )
-                
                 if result.returncode == 0:
                     containers = result.stdout.strip().split('\n')
                     containers = [c for c in containers if c]
-                    
-                    self.log_output(f"✅ Tìm thấy {len(containers)} container(s) đang chạy:\n")
+                    self.log_output(f"✅ Tìm thấy {len(containers)} spark-worker container(s) đang chạy:\n")
                     for container in containers:
                         self.log_output(f"   • {container}\n")
-                    
-                    # Update combobox
                     self.parent.after(0, lambda: self.update_container_list(containers))
                 else:
                     self.log_output(f"❌ Lỗi: {result.stderr}\n")
             except Exception as e:
                 self.log_output(f"❌ Lỗi khi kiểm tra containers: {str(e)}\n")
-        
         threading.Thread(target=check_containers, daemon=True).start()
     
     def update_container_list(self, containers):
         """Cập nhật danh sách containers trong combobox"""
+        # Thêm lựa chọn "Tất cả spark-worker" lên đầu
+        combo_values = ["Tất cả spark-worker"] + containers
         current = self.container_var.get()
-        
-        # Find combobox widget
-        for widget in self.parent.winfo_children():
-            if isinstance(widget, ttk.Frame):
-                for child in widget.winfo_children():
-                    if isinstance(child, ttk.LabelFrame):
-                        for subchild in child.winfo_children():
-                            if isinstance(subchild, ttk.Frame):
-                                for item in subchild.winfo_children():
-                                    if isinstance(item, ttk.Combobox):
-                                        item['values'] = containers
-                                        if current not in containers and containers:
-                                            self.container_var.set(containers[0])
-                                        return
+        self.container_combo['values'] = combo_values
+        if current not in combo_values and combo_values:
+            self.container_var.set(combo_values[0])
     
     def detect_os_type(self, container):
         """Phát hiện loại OS trong container"""
@@ -472,254 +469,231 @@ class PythonPackagesTab:
         return None
     
     def install_package(self):
-        """Cài đặt thư viện - với auto dependency installation"""
+        """Cài đặt thư viện - hỗ trợ cài đồng loạt cho nhiều container spark-worker"""
         container = self.container_var.get()
         package = self.package_var.get().strip()
-        
+
         if not container:
             messagebox.showerror("Lỗi", "Vui lòng chọn container!")
             return
-        
+
         if not package:
             messagebox.showerror("Lỗi", "Vui lòng nhập tên thư viện!")
             return
-        
+
         if self.is_installing:
             messagebox.showwarning("Cảnh báo", "Đang cài đặt thư viện khác, vui lòng đợi!")
             return
-        
-        # Phát hiện OS và cài dependencies nếu cần
-        compile_packages = ['matplotlib', 'numpy', 'scipy', 'pandas', 'pillow', 'lxml', 
-                           'cryptography', 'psycopg2', 'opencv-python', 'scikit-learn']
-        needs_compile = any(pkg in package.lower() for pkg in compile_packages)
-        
-        # Build command
-        def build_pip_command():
-            cmd = ['docker', 'exec', container, 'python3', '-m', 'pip', 'install']
-            if self.no_cache_var.get():
-                cmd.append('--no-cache-dir')
-            if self.upgrade_var.get():
-                cmd.append('--upgrade')
-            cmd.extend(['--timeout', '300'])
-            cmd.append(package)
-            return cmd
-        
-        # Log command
-        self.log_output(f"\n{'='*80}\n")
-        self.log_output(f"🚀 Đang cài đặt: {package}\n")
-        self.log_output(f"📦 Container: {container}\n")
-        self.log_output(f"⏰ Bắt đầu lúc: {datetime.now().strftime('%H:%M:%S')}\n")
-        self.log_output(f"{'='*80}\n\n")
-        
-        if needs_compile:
-            self.log_output(f"📋 Thư viện '{package}' cần compile từ source code\n")
-            self.log_output(f"🔧 Sẽ tự động cài đặt build tools nếu cần...\n\n")
-        
-        # Special warning for packages that take long to build
-        long_build_packages = ['numpy', 'scipy', 'pandas', 'torch', 'tensorflow', 'opencv-python']
-        if any(pkg in package.lower() for pkg in long_build_packages):
-            self.log_output(f"⚠️ LƯU Ý: {package} có thể mất 5-15 phút để build!\n")
-            self.log_output(f"💡 App vẫn đang chạy, vui lòng đợi... Theo dõi log bên dưới.\n\n")
-        
-        self.update_status(f"⏳ Đang cài đặt {package}... (có thể mất vài phút)")
-        self.is_installing = True
-        self.install_btn.config(state='disabled', text='⏳ Đang cài...')
-        self.list_btn.config(state='disabled')
-        self.uninstall_btn.config(state='disabled')
-        self.reset_progress()
-        
-        # Run in thread - THÔNG MINH với auto-retry
-        def run_install():
-            start_time = time.time()
-            last_update = start_time
-            line_count = 0
-            current_stage = "Đang chuẩn bị..."
-            deps_installed = False
-            
-            try:
-                # BƯỚC 1: Cài dependencies trước nếu cần compile
+
+        # Nếu chọn "Tất cả spark-worker" thì lấy danh sách container spark-worker đang chạy
+        if container == "Tất cả spark-worker":
+            # Lấy danh sách container spark-worker
+            result = subprocess.run(
+                ['docker', 'ps', '--filter', 'name=spark-worker', '--format', '{{.Names}}'],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=10
+            )
+            if result.returncode == 0:
+                containers = result.stdout.strip().split('\n')
+                containers = [c for c in containers if c]
+            else:
+                messagebox.showerror("Lỗi", f"Không lấy được danh sách spark-worker: {result.stderr}")
+                return
+        else:
+            containers = [container]
+
+        # Chạy cài đặt lần lượt cho từng container
+        def run_install_all():
+            self.is_installing = True
+            self.install_btn.config(state='disabled', text='⏳ Đang cài...')
+            self.list_btn.config(state='disabled')
+            self.uninstall_btn.config(state='disabled')
+            self.reset_progress()
+
+            for idx, container_name in enumerate(containers):
+                self.parent.after(0, lambda c=container_name: self.log_output(f"\n{'='*80}\n"))
+                self.parent.after(0, lambda c=container_name: self.log_output(f"🚀 Đang cài đặt: {package}\n"))
+                self.parent.after(0, lambda c=container_name: self.log_output(f"📦 Container: {c}\n"))
+                self.parent.after(0, lambda: self.log_output(f"⏰ Bắt đầu lúc: {datetime.now().strftime('%H:%M:%S')}\n"))
+                self.parent.after(0, lambda: self.log_output(f"{'='*80}\n\n"))
+
+                compile_packages = ['matplotlib', 'numpy', 'scipy', 'pandas', 'pillow', 'lxml',
+                                   'cryptography', 'psycopg2', 'opencv-python', 'scikit-learn']
+                needs_compile = any(pkg in package.lower() for pkg in compile_packages)
+
+                def build_pip_command():
+                    cmd = ['docker', 'exec', container_name, 'python3', '-m', 'pip', 'install']
+                    if self.no_cache_var.get():
+                        cmd.append('--no-cache-dir')
+                    if self.upgrade_var.get():
+                        cmd.append('--upgrade')
+                    cmd.extend(['--timeout', '300'])
+                    cmd.append(package)
+                    return cmd
+
                 if needs_compile:
-                    os_type = self.detect_os_type(container)
-                    self.parent.after(0, lambda: self.log_output(f"🖥️ Phát hiện OS: {os_type}\n"))
-                    
-                    if os_type != 'unknown':
-                        deps_installed = self.install_dependencies_sync(container, os_type)
-                    else:
-                        self.parent.after(0, lambda: self.log_output(
-                            "⚠️ Không nhận dạng được OS, sẽ thử cài trực tiếp...\n\n"))
-                
-                # BƯỚC 2: Thử cài package (lần đầu)
-                cmd = build_pip_command()
-                self.parent.after(0, lambda: self.log_output(f"💻 Lệnh: {' '.join(cmd)}\n\n"))
-                
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    universal_newlines=True,
-                    encoding='utf-8',
-                    errors='replace'
-                )
-                
-                # Collect all output to parse errors if needed
-                all_output = []
-                for line in iter(process.stdout.readline, ''):
-                    if line:
-                        all_output.append(line)
-                        self.parent.after(0, lambda l=line: self.log_output(l))
-                        line_count += 1
-                        
-                        # Parse and update progress bar
-                        progress = self.parse_progress(line)
-                        if progress is not None:
-                            self.parent.after(0, lambda p=progress, s=current_stage: 
-                                self.update_progress(p, f"{s} {int(p)}%"))
-                        
-                        # Detect important stages
-                        line_lower = line.lower()
-                        
-                        if 'collecting' in line_lower:
-                            current_stage = "📥 Đang tải"
-                            self.parent.after(0, lambda: self.update_progress(5, "📥 Đang tải thông tin..."))
-                        elif 'downloading' in line_lower:
-                            current_stage = "⬇️ Đang download"
-                        elif 'installing build dependencies' in line_lower and 'started' in line_lower:
-                            current_stage = "🔧 Dependencies"
-                            self.parent.after(0, lambda: self.update_progress(30, "🔧 Cài dependencies..."))
-                        elif 'getting requirements' in line_lower and 'started' in line_lower:
-                            current_stage = "📋 Requirements"
-                            self.parent.after(0, lambda: self.update_progress(40, "📋 Lấy requirements..."))
-                        elif 'preparing metadata' in line_lower and 'started' in line_lower:
-                            current_stage = "📝 Metadata"
-                            self.parent.after(0, lambda: self.update_progress(50, "📝 Chuẩn bị metadata..."))
-                        elif 'building wheel' in line_lower and 'started' in line_lower:
-                            current_stage = "⚙️ Build"
-                            self.parent.after(0, lambda: self.log_output(
-                                f"⚙️ ĐANG BUILD: Quá trình này có thể mất 5-15 phút...\n"))
-                            self.parent.after(0, lambda: self.update_progress(60, "⚙️ Đang build wheel..."))
-                        elif 'building wheel' in line_lower and 'still running' in line_lower:
-                            elapsed = int(time.time() - start_time)
-                            mins, secs = divmod(elapsed, 60)
-                            build_progress = min(60 + (mins * 5), 90)
-                            time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                            self.parent.after(0, lambda p=build_progress, t=time_str: 
-                                self.update_progress(p, f"⚙️ Build... {t}"))
-                        elif 'building wheel' in line_lower and 'finished' in line_lower:
-                            self.parent.after(0, lambda: self.update_progress(92, "✅ Build xong!"))
-                        elif 'installing collected packages' in line_lower:
-                            current_stage = "📦 Cài đặt"
-                            self.parent.after(0, lambda: self.update_progress(95, "📦 Đang cài đặt..."))
-                        elif 'successfully installed' in line_lower:
-                            self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
-                        
-                        # Update elapsed time periodically
-                        current_time = time.time()
-                        if current_time - last_update >= 5:
-                            elapsed = int(current_time - start_time)
-                            mins, secs = divmod(elapsed, 60)
-                            time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                            self.parent.after(0, lambda t=time_str, c=current_stage: 
-                                self.update_status(f"⏳ {c} {package}... ({t})"))
-                            last_update = current_time
-                
-                process.wait()
-                full_output = ''.join(all_output)
-                
-                # Calculate total time
-                total_time = int(time.time() - start_time)
-                mins, secs = divmod(total_time, 60)
-                time_str = f"{mins} phút {secs} giây" if mins > 0 else f"{secs} giây"
-                
-                # BƯỚC 3: Xử lý kết quả
-                if process.returncode == 0:
-                    self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
-                    self.parent.after(0, lambda: self.log_output(f"\n✅ Cài đặt thành công: {package}\n"))
-                    self.parent.after(0, lambda t=time_str: self.log_output(f"⏰ Tổng thời gian: {t}\n"))
-                    self.parent.after(0, lambda: self.update_status(f"✅ Đã cài {package}"))
-                    self.parent.after(0, lambda: messagebox.showinfo("Thành công", 
-                        f"Đã cài đặt {package} thành công!\n\nThời gian: {time_str}"))
-                else:
-                    # THẤT BẠI - Parse lỗi và thử fix
-                    self.parent.after(0, lambda: self.log_output(f"\n❌ Cài đặt thất bại (lần 1)\n"))
-                    
-                    missing_dep = self.parse_missing_dependency(full_output)
-                    
-                    if missing_dep and not deps_installed:
-                        # Phát hiện thiếu dependency - thử cài và retry
-                        self.parent.after(0, lambda d=missing_dep: self.log_output(
-                            f"\n🔍 Phát hiện thiếu dependency: {d}\n"))
-                        self.parent.after(0, lambda: self.log_output(
-                            f"🔧 Đang cài build tools và thử lại...\n"))
-                        
-                        os_type = self.detect_os_type(container)
+                    self.parent.after(0, lambda: self.log_output(f"📋 Thư viện '{package}' cần compile từ source code\n"))
+                    self.parent.after(0, lambda: self.log_output(f"🔧 Sẽ tự động cài đặt build tools nếu cần...\n\n"))
+
+                long_build_packages = ['numpy', 'scipy', 'pandas', 'torch', 'tensorflow', 'opencv-python']
+                if any(pkg in package.lower() for pkg in long_build_packages):
+                    self.parent.after(0, lambda: self.log_output(f"⚠️ LƯU Ý: {package} có thể mất 5-15 phút để build!\n"))
+                    self.parent.after(0, lambda: self.log_output(f"💡 App vẫn đang chạy, vui lòng đợi... Theo dõi log bên dưới.\n\n"))
+
+                self.update_status(f"⏳ Đang cài đặt {package} cho {container_name}...")
+
+                start_time = time.time()
+                last_update = start_time
+                line_count = 0
+                current_stage = "Đang chuẩn bị..."
+                deps_installed = False
+
+                try:
+                    # BƯỚC 1: Cài dependencies trước nếu cần compile
+                    if needs_compile:
+                        os_type = self.detect_os_type(container_name)
+                        self.parent.after(0, lambda: self.log_output(f"🖥️ Phát hiện OS: {os_type}\n"))
                         if os_type != 'unknown':
-                            deps_ok = self.install_dependencies_sync(container, os_type)
-                            
-                            if deps_ok:
-                                # RETRY lần 2
-                                self.parent.after(0, lambda: self.log_output(
-                                    f"\n{'='*80}\n"))
-                                self.parent.after(0, lambda: self.log_output(
-                                    f"🔄 THỬ LẠI LẦN 2 sau khi cài dependencies...\n"))
-                                self.parent.after(0, lambda: self.log_output(
-                                    f"{'='*80}\n\n"))
-                                
-                                retry_process = subprocess.Popen(
-                                    cmd,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT,
-                                    text=True,
-                                    encoding='utf-8',
-                                    errors='replace'
-                                )
-                                
-                                for line in iter(retry_process.stdout.readline, ''):
-                                    if line:
-                                        self.parent.after(0, lambda l=line: self.log_output(l))
-                                
-                                retry_process.wait()
-                                
-                                if retry_process.returncode == 0:
-                                    total_time2 = int(time.time() - start_time)
-                                    mins2, secs2 = divmod(total_time2, 60)
-                                    time_str2 = f"{mins2} phút {secs2} giây" if mins2 > 0 else f"{secs2} giây"
-                                    
-                                    self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
-                                    self.parent.after(0, lambda: self.log_output(
-                                        f"\n✅ Cài đặt thành công sau retry!\n"))
-                                    self.parent.after(0, lambda t=time_str2: self.log_output(
-                                        f"⏰ Tổng thời gian: {t}\n"))
-                                    self.parent.after(0, lambda: self.update_status(f"✅ Đã cài {package}"))
-                                    self.parent.after(0, lambda: messagebox.showinfo("Thành công", 
-                                        f"Đã cài đặt {package} thành công!\n\nThời gian: {time_str2}"))
-                                    return  # SUCCESS!
-                    
-                    # Vẫn thất bại
+                            deps_installed = self.install_dependencies_sync(container_name, os_type)
+                        else:
+                            self.parent.after(0, lambda: self.log_output("⚠️ Không nhận dạng được OS, sẽ thử cài trực tiếp...\n\n"))
+
+                    # BƯỚC 2: Thử cài package (lần đầu)
+                    cmd = build_pip_command()
+                    self.parent.after(0, lambda: self.log_output(f"💻 Lệnh: {' '.join(cmd)}\n\n"))
+
+                    process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                        universal_newlines=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+
+                    all_output = []
+                    for line in iter(process.stdout.readline, ''):
+                        if line:
+                            all_output.append(line)
+                            self.parent.after(0, lambda l=line: self.log_output(l))
+                            line_count += 1
+
+                            progress = self.parse_progress(line)
+                            if progress is not None:
+                                self.parent.after(0, lambda p=progress, s=current_stage:
+                                    self.update_progress(p, f"{s} {int(p)}%"))
+
+                            line_lower = line.lower()
+
+                            if 'collecting' in line_lower:
+                                current_stage = "📥 Đang tải"
+                                self.parent.after(0, lambda: self.update_progress(5, "📥 Đang tải thông tin..."))
+                            elif 'downloading' in line_lower:
+                                current_stage = "⬇️ Đang download"
+                            elif 'installing build dependencies' in line_lower and 'started' in line_lower:
+                                current_stage = "🔧 Dependencies"
+                                self.parent.after(0, lambda: self.update_progress(30, "🔧 Cài dependencies..."))
+                            elif 'getting requirements' in line_lower and 'started' in line_lower:
+                                current_stage = "📋 Requirements"
+                                self.parent.after(0, lambda: self.update_progress(40, "📋 Lấy requirements..."))
+                            elif 'preparing metadata' in line_lower and 'started' in line_lower:
+                                current_stage = "📝 Metadata"
+                                self.parent.after(0, lambda: self.update_progress(50, "📝 Chuẩn bị metadata..."))
+                            elif 'building wheel' in line_lower and 'started' in line_lower:
+                                current_stage = "⚙️ Build"
+                                self.parent.after(0, lambda: self.log_output(f"⚙️ ĐANG BUILD: Quá trình này có thể mất 5-15 phút...\n"))
+                                self.parent.after(0, lambda: self.update_progress(60, "⚙️ Đang build wheel..."))
+                            elif 'building wheel' in line_lower and 'still running' in line_lower:
+                                elapsed = int(time.time() - start_time)
+                                mins, secs = divmod(elapsed, 60)
+                                build_progress = min(60 + (mins * 5), 90)
+                                time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                                self.parent.after(0, lambda p=build_progress, t=time_str:
+                                    self.update_progress(p, f"⚙️ Build... {t}"))
+                            elif 'building wheel' in line_lower and 'finished' in line_lower:
+                                self.parent.after(0, lambda: self.update_progress(92, "✅ Build xong!"))
+                            elif 'installing collected packages' in line_lower:
+                                current_stage = "📦 Cài đặt"
+                                self.parent.after(0, lambda: self.update_progress(95, "📦 Đang cài đặt..."))
+                            elif 'successfully installed' in line_lower:
+                                self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
+
+                            current_time = time.time()
+                            if current_time - last_update >= 5:
+                                elapsed = int(current_time - start_time)
+                                mins, secs = divmod(elapsed, 60)
+                                time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                                self.parent.after(0, lambda t=time_str, c=current_stage:
+                                    self.update_status(f"⏳ {c} {package}... ({t})"))
+                                last_update = current_time
+
+                    process.wait()
+                    full_output = ''.join(all_output)
+
+                    total_time = int(time.time() - start_time)
+                    mins, secs = divmod(total_time, 60)
+                    time_str = f"{mins} phút {secs} giây" if mins > 0 else f"{secs} giây"
+
+                    if process.returncode == 0:
+                        self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
+                        self.parent.after(0, lambda: self.log_output(f"\n✅ Cài đặt thành công: {package} trên {container_name}\n"))
+                        self.parent.after(0, lambda t=time_str: self.log_output(f"⏰ Tổng thời gian: {t}\n"))
+                        self.parent.after(0, lambda: self.update_status(f"✅ Đã cài {package} trên {container_name}"))
+                    else:
+                        self.parent.after(0, lambda: self.log_output(f"\n❌ Cài đặt thất bại (lần 1) trên {container_name}\n"))
+                        missing_dep = self.parse_missing_dependency(full_output)
+                        if missing_dep and not deps_installed:
+                            self.parent.after(0, lambda d=missing_dep: self.log_output(f"\n🔍 Phát hiện thiếu dependency: {d}\n"))
+                            self.parent.after(0, lambda: self.log_output(f"🔧 Đang cài build tools và thử lại...\n"))
+                            os_type = self.detect_os_type(container_name)
+                            if os_type != 'unknown':
+                                deps_ok = self.install_dependencies_sync(container_name, os_type)
+                                if deps_ok:
+                                    self.parent.after(0, lambda: self.log_output(f"\n{'='*80}\n"))
+                                    self.parent.after(0, lambda: self.log_output(f"🔄 THỬ LẠI LẦN 2 sau khi cài dependencies...\n"))
+                                    self.parent.after(0, lambda: self.log_output(f"{'='*80}\n\n"))
+                                    retry_process = subprocess.Popen(
+                                        cmd,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT,
+                                        text=True,
+                                        encoding='utf-8',
+                                        errors='replace'
+                                    )
+                                    for line in iter(retry_process.stdout.readline, ''):
+                                        if line:
+                                            self.parent.after(0, lambda l=line: self.log_output(l))
+                                    retry_process.wait()
+                                    if retry_process.returncode == 0:
+                                        total_time2 = int(time.time() - start_time)
+                                        mins2, secs2 = divmod(total_time2, 60)
+                                        time_str2 = f"{mins2} phút {secs2} giây" if mins2 > 0 else f"{secs2} giây"
+                                        self.parent.after(0, lambda: self.update_progress(100, "✅ Hoàn thành!"))
+                                        self.parent.after(0, lambda: self.log_output(f"\n✅ Cài đặt thành công sau retry trên {container_name}!\n"))
+                                        self.parent.after(0, lambda t=time_str2: self.log_output(f"⏰ Tổng thời gian: {t}\n"))
+                                        self.parent.after(0, lambda: self.update_status(f"✅ Đã cài {package} trên {container_name}"))
+                                        continue  # sang container tiếp theo
+                        self.parent.after(0, lambda: self.reset_progress())
+                        self.parent.after(0, lambda: self.log_output(f"\n❌ Cài đặt thất bại với mã lỗi: {process.returncode} trên {container_name}\n"))
+                        self.parent.after(0, lambda: self.log_output(f"💡 Tip: Kiểm tra log ở trên để biết chi tiết lỗi\n"))
+                        self.parent.after(0, lambda: self.update_status(f"❌ Cài đặt thất bại trên {container_name}"))
+                except Exception as e:
+                    error_msg = str(e)
                     self.parent.after(0, lambda: self.reset_progress())
-                    self.parent.after(0, lambda: self.log_output(
-                        f"\n❌ Cài đặt thất bại với mã lỗi: {process.returncode}\n"))
-                    self.parent.after(0, lambda: self.log_output(
-                        f"💡 Tip: Kiểm tra log ở trên để biết chi tiết lỗi\n"))
-                    self.parent.after(0, lambda: self.update_status("❌ Cài đặt thất bại"))
-                    self.parent.after(0, lambda: messagebox.showerror("Lỗi", 
-                        f"Cài đặt {package} thất bại!\n\nKiểm tra log để biết chi tiết."))
-                
-            except Exception as e:
-                error_msg = str(e)
-                self.parent.after(0, lambda: self.reset_progress())
-                self.parent.after(0, lambda: self.log_output(f"\n❌ Lỗi: {error_msg}\n"))
-                self.parent.after(0, lambda: self.update_status("❌ Lỗi cài đặt"))
-                self.parent.after(0, lambda: messagebox.showerror("Lỗi", f"Lỗi: {error_msg}"))
-            
-            finally:
-                self.is_installing = False
-                self.parent.after(0, lambda: self.install_btn.config(state='normal', text='✅ Cài đặt'))
-                self.parent.after(0, lambda: self.list_btn.config(state='normal'))
-                self.parent.after(0, lambda: self.uninstall_btn.config(state='normal'))
-        
-        threading.Thread(target=run_install, daemon=True).start()
+                    self.parent.after(0, lambda: self.log_output(f"\n❌ Lỗi: {error_msg} trên {container_name}\n"))
+                    self.parent.after(0, lambda: self.update_status(f"❌ Lỗi cài đặt trên {container_name}"))
+
+            self.is_installing = False
+            self.parent.after(0, lambda: self.install_btn.config(state='normal', text='✅ Cài đặt'))
+            self.parent.after(0, lambda: self.list_btn.config(state='normal'))
+            self.parent.after(0, lambda: self.uninstall_btn.config(state='normal'))
+
+        threading.Thread(target=run_install_all, daemon=True).start()
     
     def list_installed(self):
         """Liệt kê thư viện đã cài"""
