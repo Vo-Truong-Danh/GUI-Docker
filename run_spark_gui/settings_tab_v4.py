@@ -8,6 +8,8 @@ from tkinter import ttk, messagebox, filedialog
 import json
 import os
 import yaml
+import subprocess
+import threading
 from modern_theme import LightTheme, Spacing
 
 
@@ -954,7 +956,16 @@ class SettingsTabV4:
             self.test_connections,
             'secondary'
         )
-        test_btn.pack(side=tk.LEFT)
+        test_btn.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        
+        # Clear data button (DANGER)
+        clear_btn = CleanButton(
+            button_frame,
+            "🧹 Clear HDFS Data",
+            self.clear_data_safe,
+            'danger'
+        )
+        clear_btn.pack(side=tk.LEFT)
     
     def save_settings(self):
         """Save all settings to config file"""
@@ -1088,3 +1099,306 @@ class SettingsTabV4:
                 self.append_log(f"🌐 Opened {port_key} at {url}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open browser: {e}")
+    
+    def clear_data_safe(self):
+        """Clear HDFS data safely while keeping Docker images"""
+        # Show detailed warning dialog
+        warning_message = """⚠️ CẢNH BÁO: DỌN DẸP DỮ LIỆU HDFS & SPARK
+
+SẼ BỊ XÓA:
+  ❌ Tất cả dữ liệu trên HDFS (namenode + datanode)
+  ❌ Containers đang chạy (sẽ được tạo lại)
+  ❌ Docker volumes: hadoop_namenode, hadoop_datanode
+  
+SẼ ĐƯỢC GIỮ LẠI:
+  ✅ Tất cả Docker images (bao gồm my-spark-worker)
+  ✅ Thư viện đã cài đặt trong images
+  ✅ Mã nguồn và cấu hình
+  
+Bạn có chắc chắn muốn tiếp tục?"""
+        
+        response = messagebox.askyesnocancel(
+            "⚠️ Xác nhận dọn dẹp dữ liệu",
+            warning_message,
+            icon='warning'
+        )
+        
+        if response is None or response is False:
+            if self.append_log:
+                self.append_log("⛔ Đã hủy dọn dẹp dữ liệu")
+            return
+        
+        # Double confirmation for safety
+        confirm_msg = "⚠️ XÁC NHẬN LẦN CUỐI!\n\nNhập 'YES' để tiếp tục xóa dữ liệu:"
+        
+        # Create confirmation dialog
+        confirm_dialog = tk.Toplevel(self.frame)
+        confirm_dialog.title("⚠️ Xác nhận lần cuối")
+        confirm_dialog.geometry("450x250")
+        confirm_dialog.resizable(False, False)
+        confirm_dialog.transient(self.frame)
+        confirm_dialog.grab_set()
+        
+        # Center dialog
+        confirm_dialog.update_idletasks()
+        x = (confirm_dialog.winfo_screenwidth() // 2) - (confirm_dialog.winfo_width() // 2)
+        y = (confirm_dialog.winfo_screenheight() // 2) - (confirm_dialog.winfo_height() // 2)
+        confirm_dialog.geometry(f"+{x}+{y}")
+        
+        # Main frame
+        main_frame = tk.Frame(confirm_dialog, bg='#FFFFFF', padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Warning icon and text
+        tk.Label(
+            main_frame,
+            text=confirm_msg,
+            font=('Segoe UI', 11, 'bold'),
+            bg='#FFFFFF',
+            fg='#CF222E',
+            justify=tk.LEFT,
+            wraplength=400
+        ).pack(pady=(0, 20))
+        
+        # Entry for confirmation
+        confirm_entry = tk.Entry(
+            main_frame,
+            font=('Segoe UI', 12),
+            bg='#F6F8FA',
+            fg='#24292F',
+            relief=tk.FLAT,
+            width=30
+        )
+        confirm_entry.pack(pady=(0, 20))
+        confirm_entry.focus()
+        
+        result = {'confirmed': False}
+        
+        def on_confirm():
+            if confirm_entry.get().strip().upper() == 'YES':
+                result['confirmed'] = True
+                confirm_dialog.destroy()
+            else:
+                messagebox.showwarning(
+                    "Sai mã xác nhận",
+                    "Vui lòng nhập 'YES' (viết hoa) để xác nhận!",
+                    parent=confirm_dialog
+                )
+        
+        def on_cancel():
+            result['confirmed'] = False
+            confirm_dialog.destroy()
+        
+        # Buttons
+        btn_frame = tk.Frame(main_frame, bg='#FFFFFF')
+        btn_frame.pack(fill=tk.X)
+        
+        CleanButton(
+            btn_frame,
+            "❌ Hủy",
+            on_cancel,
+            'secondary'
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        
+        CleanButton(
+            btn_frame,
+            "✅ Xác nhận",
+            on_confirm,
+            'danger'
+        ).pack(side=tk.LEFT)
+        
+        # Bind Enter key
+        confirm_entry.bind('<Return>', lambda e: on_confirm())
+        
+        # Wait for dialog
+        confirm_dialog.wait_window()
+        
+        if not result['confirmed']:
+            if self.append_log:
+                self.append_log("⛔ Đã hủy dọn dẹp dữ liệu (không xác nhận)")
+            return
+        
+        # Proceed with clearing data
+        if self.append_log:
+            self.append_log("🧹 Bắt đầu dọn dẹp dữ liệu HDFS...")
+        
+        # Run in separate thread to avoid blocking UI
+        thread = threading.Thread(target=self._execute_clear_data, daemon=True)
+        thread.start()
+    
+    def _execute_clear_data(self):
+        """Execute clear data operations in background thread"""
+        try:
+            # Step 1: Check Docker
+            if self.append_log:
+                self.append_log("🔍 [1/6] Kiểm tra Docker...")
+            
+            result = subprocess.run(
+                ['docker', 'info'],
+                capture_output=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if result.returncode != 0:
+                if self.append_log:
+                    self.append_log("❌ Docker không chạy! Vui lòng khởi động Docker Desktop")
+                messagebox.showerror("Lỗi", "Docker không chạy!\nVui lòng khởi động Docker Desktop trước.")
+                return
+            
+            if self.append_log:
+                self.append_log("   ✅ Docker đang chạy")
+            
+            # Step 2: Backup images list
+            if self.append_log:
+                self.append_log("📋 [2/6] Kiểm tra Docker images...")
+            
+            result = subprocess.run(
+                ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'],
+                capture_output=True,
+                timeout=10,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if 'my-spark-worker:latest' in result.stdout:
+                if self.append_log:
+                    self.append_log("   ✅ Tìm thấy my-spark-worker:latest (sẽ được giữ lại)")
+            else:
+                if self.append_log:
+                    self.append_log("   ⚠️ Không tìm thấy my-spark-worker:latest")
+            
+            # Step 3: Stop and remove containers
+            if self.append_log:
+                self.append_log("🛑 [3/6] Stop và remove containers...")
+            
+            # Get project root directory
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            result = subprocess.run(
+                ['docker-compose', 'down'],
+                cwd=project_root,
+                capture_output=True,
+                timeout=60,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if result.returncode == 0:
+                if self.append_log:
+                    self.append_log("   ✅ Đã stop và remove containers")
+            else:
+                if self.append_log:
+                    self.append_log(f"   ⚠️ Lỗi: {result.stderr}")
+            
+            # Wait a bit
+            import time
+            time.sleep(2)
+            
+            # Step 4: Remove volumes
+            if self.append_log:
+                self.append_log("🗑️ [4/6] Xóa volumes (dữ liệu HDFS)...")
+            
+            volumes_to_remove = [
+                'gui-docker_hadoop_namenode',
+                'gui-docker_hadoop_datanode'
+            ]
+            
+            for volume in volumes_to_remove:
+                result = subprocess.run(
+                    ['docker', 'volume', 'rm', volume],
+                    capture_output=True,
+                    timeout=10,
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                )
+                
+                if result.returncode == 0:
+                    if self.append_log:
+                        self.append_log(f"   ✅ Đã xóa volume: {volume}")
+                else:
+                    if self.append_log:
+                        self.append_log(f"   ℹ️ Volume không tồn tại hoặc đã xóa: {volume}")
+            
+            # Step 5: Restart containers
+            if self.append_log:
+                self.append_log("🚀 [5/6] Khởi động lại containers...")
+            
+            result = subprocess.run(
+                ['docker-compose', 'up', '-d'],
+                cwd=project_root,
+                capture_output=True,
+                timeout=120,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if result.returncode == 0:
+                if self.append_log:
+                    self.append_log("   ✅ Đã khởi động lại containers")
+            else:
+                if self.append_log:
+                    self.append_log(f"   ❌ Lỗi khởi động: {result.stderr}")
+                    self.append_log("   Vui lòng chạy thủ công: docker-compose up -d")
+            
+            # Step 6: Verify
+            if self.append_log:
+                self.append_log("🔍 [6/6] Kiểm tra kết quả...")
+            
+            time.sleep(3)
+            
+            # Check images still exist
+            result = subprocess.run(
+                ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'],
+                capture_output=True,
+                timeout=10,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if 'my-spark-worker:latest' in result.stdout:
+                if self.append_log:
+                    self.append_log("   ✅ XÁC NHẬN: my-spark-worker:latest vẫn còn!")
+            else:
+                if self.append_log:
+                    self.append_log("   ⚠️ CẢNH BÁO: my-spark-worker:latest KHÔNG TÌM THẤY!")
+            
+            # Check containers
+            result = subprocess.run(
+                ['docker-compose', 'ps'],
+                cwd=project_root,
+                capture_output=True,
+                timeout=10,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if self.append_log:
+                self.append_log("\n" + "="*60)
+                self.append_log("✅ HOÀN TẤT DỌN DẸP DỮ LIỆU!")
+                self.append_log("="*60)
+                self.append_log("\n📌 BƯỚC TIẾP THEO:")
+                self.append_log("   1. Upload lại dữ liệu vào HDFS (tab HDFS Upload)")
+                self.append_log("   2. Truy cập HDFS Web UI: http://localhost:9870")
+                self.append_log("   3. Kiểm tra containers: docker-compose ps")
+                self.append_log("")
+            
+            # Show success message
+            messagebox.showinfo(
+                "✅ Thành công",
+                "Dọn dẹp dữ liệu hoàn tất!\n\n"
+                "✅ Containers đã được khởi động lại\n"
+                "✅ HDFS volumes đã được tạo mới (sạch)\n"
+                "✅ Tất cả Docker images vẫn còn\n\n"
+                "📌 Bạn có thể upload lại dữ liệu vào HDFS."
+            )
+        
+        except subprocess.TimeoutExpired:
+            if self.append_log:
+                self.append_log("❌ Timeout! Thao tác mất quá nhiều thời gian")
+            messagebox.showerror("Timeout", "Thao tác mất quá nhiều thời gian!\nVui lòng kiểm tra Docker Desktop.")
+        
+        except Exception as e:
+            if self.append_log:
+                self.append_log(f"❌ Lỗi: {str(e)}")
+            messagebox.showerror("Lỗi", f"Có lỗi xảy ra:\n{str(e)}\n\nVui lòng xem log để biết chi tiết.")

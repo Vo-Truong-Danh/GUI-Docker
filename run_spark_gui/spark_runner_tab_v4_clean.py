@@ -428,6 +428,36 @@ class SparkRunnerTabV4:
                                     self.on_stop, 1)
         self.stop_btn.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
+        # Custom Command section
+        tk.Label(sc, text='Custom Args:', font=('Segoe UI', 9),
+                bg='#FFFFFF', fg='#57606A').pack(anchor='w', pady=(8, 4))
+        
+        custom_cmd_frame = tk.Frame(sc, bg='#FFFFFF')
+        custom_cmd_frame.pack(fill=tk.X, pady=(0, 6))
+        
+        self.custom_args_var = tk.StringVar(value='--skip_training --skip_evaluation')
+        custom_args_entry = tk.Entry(
+            custom_cmd_frame,
+            textvariable=self.custom_args_var,
+            font=('Consolas', 8),
+            bg='#F6F8FA',
+            fg='#24292F',
+            relief=tk.SOLID,
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground='#D0D7DE',
+            highlightcolor='#0969DA'
+        )
+        custom_args_entry.pack(fill=tk.X, ipady=4)
+        
+        # Custom run button
+        custom_run_row = tk.Frame(sc, bg='#FFFFFF')
+        custom_run_row.pack(fill=tk.X, pady=(0, 6))
+        
+        self.custom_run_btn = CleanButton(custom_run_row, '🎯 Run Custom', 'primary',
+                                         self.on_custom_run, 1)
+        self.custom_run_btn.pack(fill=tk.X)
+        
         # Manual steps - Full width
         manual_row = tk.Frame(sc, bg='#FFFFFF')
         manual_row.pack(fill=tk.X, pady=(0, 6))
@@ -732,6 +762,106 @@ class SparkRunnerTabV4:
                     self.callbacks['update_status']('❌ Job failed')
         
         self.thread_pool.submit(run_job)
+    
+    def on_custom_run(self):
+        """Run Spark job with custom arguments"""
+        filepath = self.file_var.get().strip()
+        if not filepath:
+            messagebox.showwarning('No File Selected',
+                                 'Please select a Python file first.')
+            return
+        
+        if not os.path.exists(filepath):
+            messagebox.showerror('File Not Found',
+                               f'File does not exist:\n{filepath}')
+            return
+        
+        custom_args = self.custom_args_var.get().strip()
+        
+        # Add to history
+        if 'add_to_history' in self.callbacks:
+            self.callbacks['add_to_history'](self.config, filepath)
+            self.history_combo['values'] = self.config.get('history', [])
+        
+        # Run in thread
+        self.is_running = True
+        self.progress.start(10)
+        
+        def run_custom_job():
+            container = self.container_var.get()
+            master = self.master_var.get()
+            filename = Path(filepath).name
+            
+            self.append_log('🎯 Running custom Spark job...', 'header')
+            self.append_log(f'📄 File: {filename}', 'info')
+            self.append_log(f'🔧 Custom args: {custom_args}', 'info')
+            
+            # Step 1: Copy file to container
+            self.append_log('\n📦 Step 1/2: Copying file to container...', 'info')
+            copy_success = copy_file_to_container(filepath, container, self.append_log)
+            
+            if not copy_success:
+                self.append_log('❌ Failed to copy file to container', 'error')
+                self.progress.stop()
+                if 'update_status' in self.callbacks:
+                    self.callbacks['update_status']('❌ Copy failed')
+                return
+            
+            # Step 2: Submit with custom args
+            self.append_log('\n⚡ Step 2/2: Submitting Spark job with custom arguments...', 'info')
+            
+            # Build custom spark-submit command
+            spark_submit_cmd = f'/spark/bin/spark-submit --master {master} /tmp/{filename}'
+            if custom_args:
+                spark_submit_cmd += f' {custom_args}'
+            
+            self.append_log(f'🔧 Command: {spark_submit_cmd}', 'info')
+            
+            try:
+                import subprocess
+                
+                docker_cmd = [
+                    'docker', 'exec', container,
+                    'bash', '-c', spark_submit_cmd
+                ]
+                
+                process = subprocess.Popen(
+                    docker_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    encoding='utf-8',
+                    errors='replace',
+                    bufsize=1
+                )
+                
+                # Stream output
+                for line in process.stdout:
+                    if not self.is_running:
+                        process.terminate()
+                        self.append_log('⏹️ Job stopped by user', 'warning')
+                        break
+                    self.append_log(line.rstrip(), 'normal')
+                
+                process.wait()
+                
+                self.progress.stop()
+                
+                if process.returncode == 0:
+                    self.append_log('\n✅ Custom Spark job completed successfully!', 'success')
+                    if 'update_status' in self.callbacks:
+                        self.callbacks['update_status']('✅ Custom job completed')
+                else:
+                    self.append_log(f'\n❌ Job failed with exit code {process.returncode}', 'error')
+                    if 'update_status' in self.callbacks:
+                        self.callbacks['update_status']('❌ Custom job failed')
+                
+            except Exception as e:
+                self.append_log(f'\n❌ Error running custom job: {str(e)}', 'error')
+                self.progress.stop()
+                if 'update_status' in self.callbacks:
+                    self.callbacks['update_status']('❌ Error')
+        
+        self.thread_pool.submit(run_custom_job)
     
     def on_step1(self):
         """Step 1: Copy file to container"""

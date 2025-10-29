@@ -1,5 +1,5 @@
 {
-  "container": "spark-worker",
+  "container": "gui-docker-spark-worker-1",
   "master": "spark://spark-master:7077",
   "hdfs_container": "namenode",
   "hdfs_host": "hdfs://namenode:9870",
