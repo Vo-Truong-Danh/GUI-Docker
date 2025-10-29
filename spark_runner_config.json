@@ -11,6 +11,7 @@
   "hdfs_upload_timeout": 300,
   "docker_command_timeout": 60,
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_ULTRA_LOW_DISK.py",
     "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_optimized_tangchinhxac.py"
   ]
 }

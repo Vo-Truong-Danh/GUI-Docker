@@ -1,5 +1,7 @@
 @echo off
-chcp 65001 >nul
+REM ============================================================================
+REM CLEAN DOCKER - Keep HDFS Input Data (No Backup/Restore!)
+REM ============================================================================
 
 echo.
 echo ========================================================================
@@ -47,7 +49,7 @@ echo [1.4] System prune (keep images)...
 docker system prune -f --volumes
 
 echo.
-echo ✓ Docker cleaned (running containers kept)
+echo [OK] Docker cleaned (running containers kept)
 timeout /t 3 /nobreak >nul
 
 REM ============================================================================
@@ -61,7 +63,7 @@ echo ========================================================================
 docker-compose down
 timeout /t 5 /nobreak >nul
 
-echo ✓ Containers stopped
+echo [OK] Containers stopped
 
 REM ============================================================================
 REM STEP 3: STOP DOCKER
@@ -71,7 +73,7 @@ echo ========================================================================
 echo   STEP 3/5: Stop Docker Desktop
 echo ========================================================================
 echo.
-echo   1. Right-click Docker icon → Quit Docker Desktop
+echo   1. Right-click Docker icon - Quit Docker Desktop
 echo   2. Wait until icon disappears completely
 echo   3. Press any key here
 echo.
@@ -110,7 +112,7 @@ echo After:
 powershell -Command "Get-Item '%VHDX_PATH%' | Select @{N='Size (GB)';E={[math]::Round($_.Length/1GB,2)}}"
 
 echo.
-echo ✓ VHDX compacted
+echo [OK] VHDX compacted
 timeout /t 3 /nobreak >nul
 
 REM ============================================================================
@@ -132,7 +134,7 @@ docker-compose up -d
 timeout /t 15 /nobreak >nul
 
 echo.
-echo ✓ Containers started
+echo [OK] Containers started
 
 REM ============================================================================
 REM VERIFICATION
@@ -156,7 +158,7 @@ docker exec namenode hdfs dfs -du -s -h /input/data/
 
 echo.
 echo ========================================================================
-echo   ✓ CLEAN COMPLETE!
+echo   [OK] CLEAN COMPLETE!
 echo ========================================================================
 echo.
 echo   If VHDX did NOT shrink much, it means Docker still has data.
