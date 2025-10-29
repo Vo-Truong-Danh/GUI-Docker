@@ -1,0 +1,153 @@
+========================================================================
+  DỌN DẸP HOÀN TẤT - SUMMARY
+========================================================================
+
+ĐÃ XÓA (Files test & không dùng):
+========================================================================
+  ❌ TEST_CHOICE.bat
+  ❌ TEST_OPTION_7.bat
+  ❌ TEST_REAL_FLOW.bat
+  ❌ DEBUG_COMPACT.bat
+  ❌ MINIMAL_TEST.bat
+  ❌ TEST_DISK_CHECK.bat
+  ❌ FREE_DISK_C_COMPLETE.bat (auto script phức tạp, không hoạt động tốt)
+  ❌ NUCLEAR_CLEAN_KEEP_INPUT.bat (backup/restore, không cần)
+  ❌ DEEP_CLEAN_DOCKER.bat (xóa cả input, không muốn)
+
+
+GIỮ LẠI (Files quan trọng):
+========================================================================
+  
+  🔥 SCRIPT CHÍNH - COMPACT DISK:
+  ✅ CLEAN_KEEP_HDFS_INPUT.bat    ← DÙNG CÁI NÀY! Giữ input data!
+  ✅ COMPACT_WITH_ADMIN.bat       ← Wrapper gọi CLEAN_KEEP_HDFS_INPUT
+  ✅ SIMPLE_COMPACT.bat           ← Backup option (manual steps)
+  
+  📋 MENU & CONTROL:
+  ✅ MAIN_MENU.bat                ← Menu chính (option [7] → CLEAN_KEEP_HDFS_INPUT)
+  ✅ CLEAN_DATA_MENU.bat          ← Menu xóa HDFS data
+  ✅ START_APP_SMART.bat          ← Khởi động app + scale workers
+  ✅ RETRAIN_MENU.bat             ← Menu retrain model
+  ✅ MONITOR_SPARK_JOB.bat        ← Monitor Spark job
+  
+  🔧 DEBUG & TOOLS:
+  ✅ CHECK_DOCKER_DATA.bat        ← Check Docker data usage
+  
+  📖 DOCUMENTATION:
+  ✅ START_HERE_DISK_CLEANUP.txt  ← Hướng dẫn chính
+  ✅ WHY_COMPACT_FAILED.md        ← Giải thích tại sao compact fail
+  ✅ ULTRA_LOW_DISK_GUIDE.md      ← Hướng dẫn rank cao (120+)
+  ✅ QUICK_FIX_DISK_C.txt         ← Quick reference
+
+
+THAY ĐỔI MAIN_MENU.bat:
+========================================================================
+  
+  Option [7] COMPACT DOCKER DISK:
+  
+  TRƯỚC: Gọi FREE_DISK_C_COMPLETE.bat (auto, không hoạt động)
+  SAU:   Gọi CLEAN_KEEP_HDFS_INPUT.bat (manual Docker stop, hoạt động tốt!)
+  
+  Các option khác: FIX path (%~dp0) để tìm file đúng
+
+
+CÁCH SỬ DỤNG:
+========================================================================
+  
+  ĐỂ GIẢI PHÓNG 200GB Ổ C: (GIỮ INPUT DATA):
+  
+    Right-click CLEAN_KEEP_HDFS_INPUT.bat → Run as Administrator
+    
+    HOẶC
+    
+    Right-click MAIN_MENU.bat → Run as Administrator → [7]
+  
+  
+  ĐỂ CHẠY SPARK JOB:
+  
+    MAIN_MENU.bat → [2] START APPLICATION
+    → Chọn số workers
+    → Mở GUI: [3] OPEN GUI APPLICATION
+  
+  
+  ĐỂ RETRAIN MODEL (RANK CAO):
+  
+    - Dùng file: spotify_rec_ULTRA_LOW_DISK.py (rank 80-150)
+    - Hoặc GUI → Tab "Parameter Tuning"
+
+
+SCRIPT HOẠT ĐỘNG THẾ NÀO:
+========================================================================
+  
+  CLEAN_KEEP_HDFS_INPUT.bat:
+  
+  1. Xóa stopped containers, unused volumes/images
+  2. Stop containers (docker-compose down)
+  3. YÊU CẦU: BẠN tắt Docker Desktop manual
+  4. Compact VHDX: 244GB → ~40GB (10-15 phút)
+  5. YÊU CẦU: BẠN mở Docker Desktop lại
+  6. Start containers: docker-compose up -d
+  7. Verify input data: hdfs dfs -du -s -h /input/data/
+  
+  KẾT QUẢ:
+  - C: drive +200GB free space
+  - Input data 31.2GB vẫn ở HDFS (KHÔNG MẤT!)
+
+
+TẠI SAO PHẢI TẮT DOCKER MANUAL?
+========================================================================
+  
+  - Auto stop (wsl --shutdown) KHÔNG ĐỦ
+  - Docker còn processes chạy ngầm
+  - DiskPart không compact được: "file in use"
+  
+  → Manual stop (Quit Docker Desktop) → Chắc chắn stop hoàn toàn
+  → DiskPart compact thành công!
+
+
+FILE STRUCTURE CUỐI CÙNG:
+========================================================================
+  
+  GUI-Docker/
+  ├── CLEAN_KEEP_HDFS_INPUT.bat    ⭐ Script chính
+  ├── MAIN_MENU.bat                 ⭐ Menu chính
+  ├── COMPACT_WITH_ADMIN.bat        
+  ├── SIMPLE_COMPACT.bat            
+  ├── CHECK_DOCKER_DATA.bat         
+  │
+  ├── CLEAN_DATA_MENU.bat           
+  ├── START_APP_SMART.bat           
+  ├── RETRAIN_MENU.bat              
+  ├── MONITOR_SPARK_JOB.bat         
+  │
+  ├── START_HERE_DISK_CLEANUP.txt   📖 Đọc file này!
+  ├── WHY_COMPACT_FAILED.md         📖
+  ├── ULTRA_LOW_DISK_GUIDE.md       📖
+  ├── QUICK_FIX_DISK_C.txt          📖
+  │
+  ├── code python/
+  │   ├── spotify_rec_ULTRA_LOW_DISK.py      ⭐ Rank cao (80-150)
+  │   └── spotify_rec_optimized_tangchinhxac.py
+  │
+  ├── run_spark_gui/
+  │   ├── main.py
+  │   ├── parameter_tuning_tab.py            ⭐ NEW! Parameter tuning
+  │   ├── quick_retrain_helper.py            
+  │   └── ...
+  │
+  └── docker-compose.yml
+
+
+NEXT STEPS:
+========================================================================
+  
+  1. Chạy CLEAN_KEEP_HDFS_INPUT.bat để free 200GB
+  2. Verify input data còn nguyên
+  3. Start training với rank cao (80-150) dùng ULTRA_LOW_DISK.py
+  4. Hoặc dùng GUI → Tab "Parameter Tuning"
+
+
+DONE! ✅
+========================================================================
+
+

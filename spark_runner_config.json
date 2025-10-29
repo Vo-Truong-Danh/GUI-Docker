@@ -1,0 +1,16 @@
+{
+  "container": "spark-worker",
+  "master": "spark://spark-master:7077",
+  "hdfs_container": "namenode",
+  "hdfs_host": "hdfs://namenode:8020",
+  "hdfs_default_path": "/user/spark/data",
+  "auto_extract_archives": true,
+  "delete_archive_after_extract": true,
+  "compose_file": "D:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\docker-compose.yml",
+  "spark_job_timeout": 300,
+  "hdfs_upload_timeout": 300,
+  "docker_command_timeout": 60,
+  "history": [
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_optimized_tangchinhxac.py"
+  ]
+}

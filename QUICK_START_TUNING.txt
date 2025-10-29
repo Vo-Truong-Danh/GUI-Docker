@@ -1,0 +1,67 @@
+========================================================================
+  QUICK START - 4 BƯỚC ĐƠN GIẢN
+========================================================================
+
+TAB: 🔥 Parameter Tuning
+
+────────────────────────────────────────────────────────────────────
+
+BƯỚC 1: Browse file
+────────────────────────────────────────────────────────────────────
+Click "Browse" → Chọn:
+code python\spotify_rec_optimized_tangchinhxac.py
+
+────────────────────────────────────────────────────────────────────
+
+BƯỚC 2: Chọn preset
+────────────────────────────────────────────────────────────────────
+CLICK vào 1 trong 4 button:
+
+  Default    → MAP ~5.5-6.0%  (15-18 phút)  ← BẮT ĐẦU TỪ ĐÂY
+  Moderate   → MAP ~6.0-6.5%  (18-22 phút)
+  Aggressive → MAP ~7.0-7.5%  (22-27 phút)
+  Maximum    → MAP ~8.0-8.5%  (27-35 phút)
+
+────────────────────────────────────────────────────────────────────
+
+BƯỚC 3: Start Training
+────────────────────────────────────────────────────────────────────
+Click button xanh lá: 🚀 Start Training
+→ Confirm "Yes"
+
+────────────────────────────────────────────────────────────────────
+
+BƯỚC 4: Xem kết quả
+────────────────────────────────────────────────────────────────────
+Bên phải sẽ có logs realtime
+Tìm dòng: 📊 MAP@500 = X.XXXX  ← ĐÂY LÀ ĐIỂM!
+
+════════════════════════════════════════════════════════════════════
+
+CUSTOM PARAMETERS (TÙY CHỌN):
+════════════════════════════════════════════════════════════════════
+
+Thay vì chọn preset, có thể:
+
+1. Scroll xuống tìm: ☐ Use custom parameters
+2. CLICK vào checkbox → ☑ Use custom parameters
+3. Ô nhập tham số sẽ HIỆN RA bên dưới
+4. Nhập Rank, Alpha, RegParam, MaxIter
+5. Click 🚀 Start Training
+
+════════════════════════════════════════════════════════════════════
+
+LƯU Ý:
+════════════════════════════════════════════════════════════════════
+
+⚠️  Workers phải chạy trước! Nếu lỗi, chạy:
+    docker restart gui-docker-spark-worker-1 gui-docker-spark-worker-2
+
+✅ Không cần load lại data giữa các lần train!
+
+✅ Thử nhiều preset để so sánh MAP score
+
+════════════════════════════════════════════════════════════════════
+
+
+

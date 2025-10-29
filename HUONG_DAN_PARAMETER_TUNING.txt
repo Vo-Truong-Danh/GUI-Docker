@@ -1,0 +1,171 @@
+========================================================================
+  HƯỚNG DẪN SỬ DỤNG TAB "PARAMETER TUNING"
+========================================================================
+
+BƯỚC 1: CHỌN FILE PYTHON
+========================================================================
+
+1. Click nút "Browse"
+2. Chọn file: 
+   D:\BaiTapSinhVien\TH BigData\GUI-Docker\code python\spotify_rec_optimized_tangchinhxac.py
+3. File path sẽ hiện trong ô "Training Script:"
+
+========================================================================
+BƯỚC 2A: DÙNG PRESET (ĐƠN GIẢN)
+========================================================================
+
+Chọn 1 trong 4 preset bằng cách CLICK vào button:
+
+┌─────────────────────────────────────┐
+│ [●] Default (Baseline)              │ ← Click vào đây
+│     MAP: 5.5-6.0%                   │
+│     15-18 min                       │
+├─────────────────────────────────────┤
+│ [ ] Moderate (Better)               │
+│     MAP: 6.0-6.5%                   │
+│     18-22 min                       │
+├─────────────────────────────────────┤
+│ [ ] Aggressive (High)               │
+│     MAP: 7.0-7.5%                   │
+│     22-27 min                       │
+├─────────────────────────────────────┤
+│ [ ] Maximum (Best)                  │
+│     MAP: 8.0-8.5%                   │
+│     27-35 min                       │
+└─────────────────────────────────────┘
+
+→ CLICK vào button để chọn preset
+→ Button được chọn sẽ có dấu ● (dot)
+
+========================================================================
+BƯỚC 2B: DÙNG CUSTOM (NÂNG CAO)
+========================================================================
+
+1. SCROLL XUỐNG tìm dòng:
+   ☐ Use custom parameters
+
+2. CLICK vào checkbox để bật:
+   ☑ Use custom parameters
+
+3. Ô nhập tham số sẽ HIỆN RA:
+   
+   ┌─────────────────────────────────┐
+   │ Rank (latent factors):          │
+   │ [ 50                         ]  │
+   │ Higher = better but slower      │
+   │                                 │
+   │ Alpha (confidence):             │
+   │ [ 40.0                       ]  │
+   │ Implicit feedback weight        │
+   │                                 │
+   │ RegParam (regularization):      │
+   │ [ 0.1                        ]  │
+   │ Lower = less regularization     │
+   │                                 │
+   │ MaxIter (iterations):           │
+   │ [ 20                         ]  │
+   │ More = longer training          │
+   └─────────────────────────────────┘
+
+4. THAY ĐỔI giá trị trong các ô
+
+KHUYẾN NGHỊ CUSTOM:
+- Rank: 60-100
+- Alpha: 40-60
+- RegParam: 0.03-0.1
+- MaxIter: 20-35
+
+========================================================================
+BƯỚC 3: CHẠY TRAINING
+========================================================================
+
+1. SCROLL XUỐNG tìm button:
+   ┌─────────────────────────────┐
+   │   🚀 Start Training         │
+   └─────────────────────────────┘
+
+2. CLICK vào button "🚀 Start Training"
+
+3. Popup xác nhận sẽ hiện:
+   ┌─────────────────────────────────┐
+   │ Confirm Training                │
+   ├─────────────────────────────────┤
+   │ Train with Default (Baseline)?  │
+   │                                 │
+   │ Expected MAP: 5.5-6.0%          │
+   │ Time: 15-18 min                 │
+   │                                 │
+   │        [Yes]     [No]           │
+   └─────────────────────────────────┘
+
+4. Click "Yes"
+
+========================================================================
+BƯỚC 4: XEM KẾT QUẢ
+========================================================================
+
+Bên phải màn hình (60% diện tích) là log output:
+
+┌──────────────────────────────────────┐
+│ 📊 Training Output        [Clear]    │
+├──────────────────────────────────────┤
+│ ══════════════════════════════════   │
+│ 🔥 PARAMETER TUNING - Starting...   │
+│ ══════════════════════════════════   │
+│                                      │
+│ 🗑️  Deleting old model...           │
+│ ✅ Model deleted successfully        │
+│                                      │
+│ 🗑️  Clearing progress tracker...    │
+│ ✅ Progress cleared                  │
+│                                      │
+│ 📦 Copying code to container...     │
+│ ✅ Code copied successfully          │
+│                                      │
+│ 🚀 Submitting retrain job...        │
+│ ... [realtime logs] ...             │
+│                                      │
+│ 🎯 TRAINING ALS MODEL...            │
+│ ... [training progress] ...         │
+│                                      │
+│ 📊 MAP@500 = 0.0612                 │  ← KẾT QUẢ!
+│                                      │
+│ ✅ TRAINING COMPLETED!               │
+└──────────────────────────────────────┘
+
+========================================================================
+NẾU MUỐN STOP
+========================================================================
+
+1. Click nút "⏹️ Stop" (màu đỏ, dưới Start Training)
+2. Xác nhận "Yes"
+
+========================================================================
+NẾU BỊ LỖI "Workers not ready"
+========================================================================
+
+Chạy lệnh sau trong terminal:
+
+docker restart gui-docker-spark-worker-1 gui-docker-spark-worker-2
+
+Đợi 30 giây rồi thử lại.
+
+========================================================================
+TIPS
+========================================================================
+
+✅ Thử preset từ thấp đến cao:
+   Default → Moderate → Aggressive → Maximum
+
+✅ So sánh MAP scores để chọn tham số tốt nhất
+
+✅ Không cần load lại 33GB data giữa các lần!
+
+✅ Có thể chạy liên tục nhiều lần
+
+✅ MAP score càng cao càng tốt (mục tiêu >7%)
+
+========================================================================
+
+
+

@@ -1,0 +1,108 @@
+========================================================================
+  TAB MỚI: 🔥 PARAMETER TUNING
+========================================================================
+
+ĐÃ TÁCH RIÊNG THÀNH TAB RIÊNG!
+
+Tab "Spark Runner" → Chỉ để chạy code Spark thông thường
+Tab "Parameter Tuning" → Chuyên train model với tham số khác nhau
+
+========================================================================
+  CÁCH SỬ DỤNG
+========================================================================
+
+1. Mở GUI:
+   cd run_spark_gui
+   python main.py
+
+2. Click tab "🔥 Parameter Tuning"
+
+3. Chọn file Python training script
+
+4. Chọn preset:
+   ┌─────────────────────────────────────┐
+   │ ○ Default (Baseline)                │
+   │   MAP: 5.5-6.0% | 15-18 min         │
+   ├─────────────────────────────────────┤
+   │ ○ Moderate (Better)                 │
+   │   MAP: 6.0-6.5% | 18-22 min         │
+   ├─────────────────────────────────────┤
+   │ ○ Aggressive (High)                 │
+   │   MAP: 7.0-7.5% | 22-27 min         │
+   ├─────────────────────────────────────┤
+   │ ○ Maximum (Best)                    │
+   │   MAP: 8.0-8.5% | 27-35 min         │
+   └─────────────────────────────────────┘
+
+   HOẶC
+
+   ☑ Use custom parameters
+   → Nhập Rank, Alpha, RegParam, MaxIter
+
+5. Click "🚀 Start Training"
+
+6. Xem output realtime bên phải
+
+========================================================================
+  LAYOUT
+========================================================================
+
+Left Panel (40%):           Right Panel (60%):
+┌──────────────────┐       ┌──────────────────┐
+│ 📁 Python File   │       │ 📊 Training      │
+│ ⚙️ Configuration │       │    Output        │
+│ 🎯 Presets       │       │                  │
+│ 🔧 Custom Params │       │ [Real-time logs] │
+│ 🚀 Actions       │       │                  │
+└──────────────────┘       └──────────────────┘
+
+========================================================================
+  ƯU ĐIỂM
+========================================================================
+
+✅ Giao diện rõ ràng, tập trung vào tuning
+✅ 4 preset sẵn có, dễ so sánh
+✅ Custom parameters với hints
+✅ Real-time logs với syntax highlighting
+✅ Không cần load lại 33GB data
+✅ Tự động xóa model cũ
+✅ Stop button nếu cần
+
+========================================================================
+  TÍNH NĂNG
+========================================================================
+
+1. Automatic Cleanup:
+   - Xóa model cũ tự động
+   - Clear progress tracker
+   - Copy code mới
+
+2. Smart Presets:
+   - Default: Baseline (nhanh)
+   - Moderate: Cải thiện vừa phải
+   - Aggressive: Performance cao
+   - Maximum: Tốt nhất (chậm)
+
+3. Custom Mode:
+   - Nhập từng tham số
+   - Có hints giải thích
+   - Validation inputs
+
+4. Real-time Feedback:
+   - Stream logs trực tiếp
+   - Highlight errors/success
+   - Progress indicator
+
+========================================================================
+  LƯU Ý
+========================================================================
+
+- Workers phải chạy trước
+- Submission đã TẮT (chỉ train + MAP)
+- Có thể thử nhiều preset liên tục
+- MAP score hiển thị ở cuối log
+
+========================================================================
+
+
+

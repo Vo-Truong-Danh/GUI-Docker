@@ -406,9 +406,13 @@ class ResilientTrainer:
         step_name = "train_model"
         
         if not force_retrain and progress_tracker.is_complete(step_name):
-            print(f"\n✅ Loading model from {model_path}...")
-            model = ALSModel.load(model_path)
-            return model
+            try:
+                print(f"\n✅ Loading model from {model_path}...")
+                model = ALSModel.load(model_path)
+                return model
+            except Exception as e:
+                print(f"\n⚠️  Model load failed: {e}")
+                print(f"🔄 Retraining model instead...")
         
         print(f"\n🎯 TRAINING ALS MODEL...")
         print(f"   Rank: {rank} | RegParam: {regParam} | Alpha: {alpha} | MaxIter: {maxIter}")
@@ -755,16 +759,16 @@ def main():
 
     #ALS
     #Số lượng yếu tố tiềm ẩn (hiện là 12).
-    parser.add_argument("--rank", type=int, default=50) 
+    parser.add_argument("--rank", type=int, default=80) 
 
     #Tham số điều chuẩn (regularization) (hiện là 0.15).
-    parser.add_argument("--regParam", type=float, default=0.1)
+    parser.add_argument("--regParam", type=float, default=0.03)
 
     #Tham số tin cậy cho sở thích ngầm định (hiện là 10.0)
-    parser.add_argument("--alpha", type=float, default=40.0)
+    parser.add_argument("--alpha", type=float, default=60.0)
 
     #Số vòng lặp huấn luyện tối đa (hiện là 6).
-    parser.add_argument("--maxIter", type=int, default=20)
+    parser.add_argument("--maxIter", type=int, default=40)
 
     
 
@@ -859,24 +863,28 @@ def main():
         
         print(f"\n📊 MAP@{args.topK} = {map_score:.4f}")
         
-        # Generate submission
-        RobustSubmissionGenerator.generate_with_recovery(
-            spark, model,
-            indexed_df, playlist_map_df, track_map_df,
-            args.submission_path,
-            progress_tracker,
-            args.topK, args.batchSize,
-            args.force_regenerate
-        )
+        # ============================================================
+        # SUBMISSION GENERATION - TEMPORARILY DISABLED FOR TESTING
+        # ============================================================
+        # RobustSubmissionGenerator.generate_with_recovery(
+        #     spark, model,
+        #     indexed_df, playlist_map_df, track_map_df,
+        #     args.submission_path,
+        #     progress_tracker,
+        #     args.topK, args.batchSize,
+        #     args.force_regenerate
+        # )
         
         print("\n" + "=" * 80)
-        print("🎉 PIPELINE COMPLETE!")
+        print("🎉 TRAINING & EVALUATION COMPLETE!")
         print("=" * 80)
-        print(f"📊 Submission: {args.submission_path}")
-        print(f"💾 Model: {args.model_path}")
-        print(f"📁 Progress: progress.json")
+        print(f"📊 Final MAP@{args.topK}: {map_score:.4f} ({map_score*100:.2f}%)")
+        print(f"💾 Model saved: {args.model_path}")
+        print(f"🔧 Parameters: rank={args.rank}, alpha={args.alpha}, regParam={args.regParam}, maxIter={args.maxIter}")
         print("=" * 80)
-        print("\n💡 Resume anytime: just run the same command again")
+        print("\n💡 To retrain with NEW parameters:")
+        print("   1. Delete model: docker exec namenode hdfs dfs -rm -r /output/model/als_model")
+        print("   2. Run with new params (see below)")
         print("=" * 80)
         
     except Exception as e:

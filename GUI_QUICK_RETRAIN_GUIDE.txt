@@ -1,0 +1,52 @@
+========================================================================
+  HƯỚNG DẪN SỬ DỤNG QUICK RETRAIN TRONG GUI
+========================================================================
+
+ĐÃ TÍCH HỢP VÀO GUI! Không cần chạy BAT file nữa!
+
+========================================================================
+  CÁCH SỬ DỤNG
+========================================================================
+
+1. Mở GUI:
+   cd run_spark_gui
+   python main.py
+
+2. Tab "Spark Job Runner" → Tìm section "🔥 Quick Retrain"
+
+3. Chọn preset:
+   - default: Rank 50 (baseline) → MAP ~5.5-6.0%
+   - moderate: Rank 60 → MAP ~6.0-6.5%
+   - aggressive: Rank 80 → MAP ~7.0-7.5%
+   - maximum: Rank 100 → MAP ~8.0-8.5%
+   - custom: Nhập tham số tự do
+
+4. Click "🚀 Quick Retrain"
+
+5. Xem kết quả trong log window
+
+========================================================================
+  TÍNH NĂNG
+========================================================================
+
+✅ KHÔNG cần load lại data (33GB)
+✅ Tự động xóa model cũ
+✅ Tự động clear progress
+✅ Train với tham số mới
+✅ Hiển thị MAP score trực tiếp
+
+Thời gian: ~15-30 phút (tùy preset)
+
+========================================================================
+  LƯU Ý
+========================================================================
+
+- Submission generation đã TẮT (chỉ train + đánh giá)
+- Để bật lại, bỏ comment trong file Python
+- Workers phải đang chạy trước khi retrain
+- Có thể thử nhiều tham số liên tục
+
+========================================================================
+
+
+

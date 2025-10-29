@@ -103,6 +103,8 @@ except ImportError:
 # Import V4 Clean Professional Design for all tabs
 print("🔄 Loading Spark Runner Tab V4...")
 from spark_runner_tab_v4_clean import SparkRunnerTabV4 as SparkRunnerTab
+print("🔄 Loading Parameter Tuning Tab...")
+from parameter_tuning_tab import ParameterTuningTab
 print("🔄 Loading HDFS Upload Tab V4...")
 from hdfs_upload_tab_v4_clean import HDFSUploadTabV4Clean as HDFSUploadTab
 print("🔄 Loading AI Code Generator Tab V4...")
@@ -463,15 +465,18 @@ class App:
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         # Tab 1: Spark Runner
-        # Tab 1: Spark Runner
         self.spark_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.spark_tab, text='🚀 Spark Runner')
         
-        # Tab 2: HDFS Upload
+        # Tab 2: Parameter Tuning
+        self.tuning_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.tuning_tab, text='🔥 Parameter Tuning')
+        
+        # Tab 3: HDFS Upload
         self.hdfs_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.hdfs_tab, text='📤 HDFS Upload')
         
-        # Tab 3: AI API (PySpark + Real HDFS)
+        # Tab 4: AI API (PySpark + Real HDFS)
         self.advanced_ai_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.advanced_ai_tab, text='🤖 AI API')
         
@@ -670,6 +675,17 @@ class App:
         self.spark_runner.app_instance = self  # Pass app instance for callbacks
         
         # Note: _start_log_processor() is already called in SparkRunnerTabV4.__init__
+        
+        # Initialize Parameter Tuning Tab
+        self.parameter_tuning = ParameterTuningTab(
+            parent_frame=self.tuning_tab,
+            config=self.config,
+            theme=theme_dict,
+            callbacks={
+                'update_status': self.update_status,
+                'append_log': self.append_log,
+            }
+        )
         
         # Start auto-save timer
         self.start_auto_save_timer()
@@ -1166,6 +1182,8 @@ class App:
             print("Cleaning up resources...")
             if hasattr(self, 'spark_runner'):
                 self.spark_runner.cleanup()
+            if hasattr(self, 'parameter_tuning'):
+                self.parameter_tuning.cleanup()
             if hasattr(self, 'dashboard'):
                 self.dashboard.cleanup()
             # Ensure subprocess cleanup in backend

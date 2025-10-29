@@ -1,0 +1,115 @@
+========================================================================
+  HƯỚNG DẪN GIẢI PHÓNG Ổ C: (~200GB) - GIỮ INPUT DATA!
+========================================================================
+
+CÁCH DUY NHẤT (Đơn giản & Hiệu quả):
+====================================================================
+  
+  Right-click CLEAN_KEEP_HDFS_INPUT.bat → Run as Administrator
+  
+  Script sẽ:
+  [1] Xóa Docker containers/volumes/images không dùng
+  [2] GIỮ HDFS input data (KHÔNG cần upload lại!)
+  [3] Yêu cầu BẠN tắt Docker Desktop manual
+  [4] Compact VHDX (244GB → ~40GB)
+  [5] Yêu cầu BẠN mở Docker Desktop lại
+  
+  Thời gian: 15-20 phút
+  Kết quả: +200GB ổ C:
+
+
+HOẶC QUA MENU:
+====================================================================
+  
+  Right-click MAIN_MENU.bat → Run as Administrator
+  → Chọn [7] COMPACT DOCKER DISK
+  → Nhấn Y
+  
+  (Cũng gọi CLEAN_KEEP_HDFS_INPUT.bat)
+
+
+KẾT QUẢ:
+========================================================================
+  TRƯỚC:
+    - C: free: ~4 GB
+    - VHDX: 244 GB
+    - Input data: 31.2 GB in HDFS
+    
+  SAU:
+    - C: free: ~200 GB (+196 GB!)
+    - VHDX: ~40 GB (-204 GB!)
+    - Input data: 31.2 GB (VẪN Ở HDFS - KHÔNG MẤT!)
+
+
+VERIFY SAU KHI CHẠY:
+========================================================================
+  docker exec namenode hdfs dfs -du -s -h /input/data/
+  → Phải thấy: 31.2 G (input còn nguyên vẹn!)
+
+
+FILES QUAN TRỌNG:
+========================================================================
+  ✅ CLEAN_KEEP_HDFS_INPUT.bat    ← Script chính (DÙNG CÁI NÀY!)
+  ✅ MAIN_MENU.bat                ← Menu chính
+  ✅ COMPACT_WITH_ADMIN.bat       ← Wrapper gọi CLEAN_KEEP_HDFS_INPUT
+  
+  🔧 CHECK_DOCKER_DATA.bat        ← Debug: xem data ở đâu
+  🔧 SIMPLE_COMPACT.bat           ← Backup option (manual steps)
+  
+  📁 CLEAN_DATA_MENU.bat          ← Menu xóa HDFS data
+  📁 START_APP_SMART.bat          ← Khởi động app
+  📁 RETRAIN_MENU.bat             ← Menu retrain model
+  
+  📖 WHY_COMPACT_FAILED.md        ← Giải thích tại sao compact fail
+  📖 ULTRA_LOW_DISK_GUIDE.md      ← Hướng dẫn rank cao (120+)
+
+
+QUY TRÌNH CHI TIẾT:
+========================================================================
+  Bước 1: Script xóa Docker rác (containers/volumes/images không dùng)
+  Bước 2: Script dừng containers
+  Bước 3: BẠN tắt Docker Desktop
+           → Right-click Docker icon → Quit Docker Desktop
+           → Đợi icon biến mất
+  Bước 4: Script compact VHDX (10-15 phút)
+  Bước 5: BẠN mở Docker Desktop lại
+           → Start Docker Desktop
+           → Đợi "Engine running"
+  Bước 6: Script start containers
+  Bước 7: Verify input data
+
+
+TẠI SAO GIỮ ĐƯỢC INPUT DATA?
+========================================================================
+  - Input data ở trong HDFS filesystem (trong Docker volumes)
+  - Script KHÔNG xóa volumes đang dùng
+  - Chỉ xóa containers/volumes/images KHÔNG DÙNG
+  - Compact VHDX chỉ giảm "free space", không động data
+  - Sau compact, input data vẫn nguyên trong HDFS
+
+
+NẾU CÓ VẤN ĐỀ:
+========================================================================
+  
+  Vấn đề 1: "File in use" khi compact
+    → Docker chưa stop hẳn
+    → Đợi thêm 10 giây, thử lại
+  
+  Vấn đề 2: VHDX không giảm nhiều
+    → Chạy: CHECK_DOCKER_DATA.bat
+    → Xem data ở đâu, xóa thêm nếu cần
+  
+  Vấn đề 3: Input data bị mất sau compact
+    → KHÔNG THỂ XẢY RA! Script không chạm vào /input/data/
+    → Nếu thật sự mất → Báo lỗi nghiêm trọng!
+
+
+========================================================================
+  CHẠY NGAY:
+  
+  Right-click CLEAN_KEEP_HDFS_INPUT.bat → Run as Administrator
+  
+  Hoặc:
+  
+  Right-click MAIN_MENU.bat → Run as Administrator → [7]
+========================================================================

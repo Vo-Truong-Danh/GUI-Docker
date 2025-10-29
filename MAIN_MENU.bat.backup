@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 REM ============================================================================
 REM MAIN MENU - Central Control for All Operations
 REM ============================================================================
@@ -143,7 +144,7 @@ echo   This will:
 echo   [1] Clean Docker (delete stopped containers, unused volumes/images)
 echo   [2] Keep HDFS input data (NO need to re-upload!)
 echo   [3] Stop Docker manually
-echo   [4] Compact VHDX (244GB ??? ~40GB)
+echo   [4] Compact VHDX (244GB → ~40GB)
 echo   [5] Restart Docker
 echo.
 echo   Will free: ~200 GB on C: drive

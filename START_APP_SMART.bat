@@ -120,7 +120,7 @@ echo.
 echo    Selected: %WORKERS% worker(s)
 echo.
 
-REM Check if already running
+REM Stop containers if running
 docker ps -q --filter "name=namenode" >nul 2>&1
 if %errorlevel% equ 0 (
     echo    Stopping current containers...
@@ -130,6 +130,14 @@ if %errorlevel% equ 0 (
 
 echo    Starting containers with %WORKERS% worker(s)...
 docker-compose up -d --scale spark-worker=%WORKERS%
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [X] Failed to start containers!
+    echo    Check Docker Desktop is running
+    pause
+    exit /b 1
+)
 
 echo.
 echo    Waiting for containers to be ready...
@@ -177,4 +185,17 @@ echo      - Scale workers: docker-compose up -d --scale spark-worker=N
 echo      - View logs: docker logs -f [container-name]
 echo.
 echo ========================================================================
+echo.
+choice /C YN /M "Do you want to open GUI Application (main.py)? (Y/N)"
+if errorlevel 2 goto END_SCRIPT
+
+echo.
+echo Starting GUI Application...
+cd run_spark_gui
+start "" python main.py
+cd ..
+echo.
+echo [OK] GUI Application started!
+
+:END_SCRIPT
 pause

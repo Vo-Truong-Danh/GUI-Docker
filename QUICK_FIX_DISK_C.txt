@@ -1,0 +1,109 @@
+========================================================================
+  HƯỚNG DẪN NHANH - GIẢI PHÓNG 180GB Ổ C:
+========================================================================
+
+VẤN ĐỀ:
+  - Ổ C: chỉ còn ~10 GB
+  - VHDX Docker ngốn 227 GB
+  - Compact không hoạt động
+
+GIẢI PHÁP:
+  
+  CÁCH 1: QUA MAIN MENU (KHUYÊN DÙNG)
+  ====================================
+  1. Right-click MAIN_MENU.bat
+  2. Chọn "Run as Administrator"
+  3. Chọn option [7] COMPACT DOCKER DISK
+  4. Đợi 15-20 phút
+  
+  ✅ Xong! Ổ C: sẽ có thêm ~180 GB
+  
+  
+  CÁCH 2: CHẠY TRỰC TIẾP
+  ====================================
+  1. Right-click FREE_DISK_C_COMPLETE.bat
+  2. Chọn "Run as Administrator"
+  3. Đợi 15-20 phút
+  
+  ✅ Xong! Ổ C: sẽ có thêm ~180 GB
+
+
+KẾT QUẢ:
+  
+  TRƯỚC:
+    - C: free: ~10 GB
+    - VHDX: 227 GB
+    
+  SAU:
+    - C: free: ~190 GB (+180 GB!)
+    - VHDX: ~40 GB
+    - Input data: 33 GB (AN TOÀN!)
+
+
+QUY TRÌNH:
+  
+  [1] Xóa HDFS data (giữ input 33GB)     → 2 min
+  [2] Restart Docker để flush             → 1 min
+  [3] Compact VHDX (227 GB → 40 GB)       → 10-15 min
+  [4] Restart Docker lại                  → 1 min
+  [5] Verify kết quả                      → 1 min
+
+
+LƯU Ý QUAN TRỌNG:
+  
+  ✓ PHẢI chạy với "Run as Administrator"
+  ✓ Đợi 15-20 phút (KHÔNG tắt máy giữa chừng!)
+  ✓ Input data 33GB sẽ KHÔNG bị xóa
+  ✓ Custom Docker images sẽ KHÔNG bị xóa
+  ✓ Chỉ xóa: checkpoints, models, submissions
+
+
+VERIFY SAU KHI CHẠY XONG:
+  
+  1. Mở File Explorer
+     → Check ổ C: free space (phải tăng ~180 GB)
+  
+  2. Chạy lệnh:
+     docker exec namenode hdfs dfs -du -s -h /input/data/
+     → Phải thấy: 33 GB (input data còn nguyên)
+  
+  3. Check VHDX size:
+     - Mở: C:\Users\Pls\AppData\Local\Docker\wsl\disk\
+     - Right-click docker_data.vhdx → Properties
+     - Size: ~40 GB (giảm từ 227 GB!)
+
+
+NẾU GẶP LỖI:
+  
+  Lỗi: "This script requires Administrator privileges"
+    → Phải right-click → Run as Administrator
+  
+  Lỗi: "Docker Desktop is not running"
+    → Mở Docker Desktop trước, đợi "Engine running"
+  
+  Lỗi: "Cannot compact - file in use"
+    → Docker chưa stop hẳn, đợi thêm 10 giây
+  
+  Compact xong nhưng không giảm dung lượng?
+    → Xem file WHY_COMPACT_FAILED.md để hiểu nguyên nhân
+
+
+FILES LIÊN QUAN:
+  
+  - FREE_DISK_C_COMPLETE.bat    ← Script chính (DÙNG CÁI NÀY!)
+  - MAIN_MENU.bat               ← Option [7] gọi script trên
+  - WHY_COMPACT_FAILED.md       ← Giải thích chi tiết
+  - COMPACT_WITH_ADMIN.bat      ← Wrapper (gọi FREE_DISK_C_COMPLETE)
+
+
+========================================================================
+  CHẠY NGAY:
+  
+  Right-click MAIN_MENU.bat → Run as Administrator → Chọn [7]
+  
+  HOẶC
+  
+  Right-click FREE_DISK_C_COMPLETE.bat → Run as Administrator
+========================================================================
+
+

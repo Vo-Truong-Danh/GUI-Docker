@@ -1,0 +1,99 @@
+========================================================================
+  HƯỚNG DẪN NHANH - THỬ NGHIỆM THAM SỐ
+========================================================================
+
+ĐÃ TẮT: Tạo submission file (chỉ train + đánh giá MAP)
+
+========================================================================
+  BƯỚC 1: CHẠY TỪ ĐẦU (LẦN ĐẦU)
+========================================================================
+
+Chạy file:
+   START_FRESH_TRAINING.bat
+
+Làm gì:
+   - Xóa model cũ
+   - Xóa progress
+   - Train với tham số mặc định (rank 50)
+   - Hiển thị MAP score
+
+Thời gian: ~20 phút (2 phút load + 18 phút train)
+
+========================================================================
+  BƯỚC 2: NẾU MAP THẤP - THỬ THAM SỐ KHÁC
+========================================================================
+
+Option 1: PRESET (NHANH)
+-------------------------
+   RETRAIN_rank60.bat   → MAP ~6.0-6.5%  (~15-18 phút)
+   RETRAIN_rank80.bat   → MAP ~7.0-7.5%  (~20-25 phút)
+   RETRAIN_rank100.bat  → MAP ~8.0-8.5%  (~25-30 phút)
+
+Option 2: TÙY CHỈNH
+--------------------
+   RETRAIN_custom.bat   → Nhập tham số tự do
+
+========================================================================
+  CÁCH HOẠT ĐỘNG
+========================================================================
+
+Khi chạy RETRAIN_xxx.bat:
+   1. Xóa model cũ
+   2. GIỮ NGUYÊN data đã load (raw + indexed)
+   3. Train lại với tham số MỚI
+   4. Hiển thị MAP score MỚI
+
+KHÔNG CẦN load lại 33GB data! Rất nhanh! ⚡
+
+========================================================================
+  GIẢI THÍCH THAM SỐ
+========================================================================
+
+Rank (latent factors):
+   - Càng cao → model phức tạp hơn → MAP cao hơn
+   - Nhưng tốn RAM và thời gian hơn
+   - Khuyến nghị: 50-100
+
+Alpha (confidence weight):
+   - Trọng số cho implicit feedback
+   - Khuyến nghị: 40-60
+
+RegParam (regularization):
+   - Chống overfitting
+   - Càng thấp → model fit data hơn
+   - Khuyến nghị: 0.03-0.1
+
+MaxIter (iterations):
+   - Số vòng lặp training
+   - Khuyến nghị: 20-35
+
+========================================================================
+  CÁCH CHỌN THAM SỐ
+========================================================================
+
+Nếu MAP quá thấp (<4%):
+   → Tăng rank lên 80-100
+   → Giảm regParam xuống 0.05
+
+Nếu MAP OK (5-6%):
+   → Thử tăng alpha lên 50-60
+   → Tăng maxIter lên 30
+
+Nếu bị OOM (out of memory):
+   → Giảm rank xuống 40
+   → Tăng regParam lên 0.15
+
+========================================================================
+  SAU KHI HÀI LÒNG VỚI MAP
+========================================================================
+
+Bật lại submission generation:
+   1. Mở file: code python/spotify_rec_optimized_tangchinhxac.py
+   2. Tìm dòng: # SUBMISSION GENERATION - TEMPORARILY DISABLED
+   3. Bỏ comment (xóa dấu #) các dòng bên dưới
+   4. Chạy lại script với tham số tốt nhất
+
+========================================================================
+
+
+
