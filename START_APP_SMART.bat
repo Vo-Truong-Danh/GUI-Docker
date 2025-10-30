@@ -14,9 +14,64 @@ echo   Checking system status...
 echo.
 
 REM ============================================================================
+REM STEP 0: Check if Docker Desktop is running, start if not
+REM ============================================================================
+echo [0/5] Checking Docker Desktop...
+docker info >nul 2>&1
+if errorlevel 1 goto DOCKER_NOT_RUNNING
+echo    [OK] Docker Desktop is running
+goto DOCKER_READY
+
+:DOCKER_NOT_RUNNING
+echo    [!] Docker Desktop is NOT running
+echo.
+echo    Starting Docker Desktop...
+echo.
+
+REM Start Docker Desktop
+start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+
+echo    Waiting for Docker to initialize (30-60 seconds)...
+timeout /t 30 /nobreak >nul
+
+REM Poll for Docker to be ready (max 3 minutes)
+set /a WAIT_COUNT=0
+
+:DOCKER_POLL_LOOP
+docker info >nul 2>&1
+if not errorlevel 1 goto DOCKER_STARTED
+
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% GTR 36 (
+    echo.
+    echo    [X] Docker failed to start after 3 minutes!
+    echo.
+    echo    Please:
+    echo    1. Check if Docker Desktop is installed
+    echo    2. Manually start Docker Desktop
+    echo    3. Wait for "Docker Desktop is running" message
+    echo    4. Run this script again
+    echo.
+    pause
+    exit /b 1
+)
+
+echo    Still waiting... %WAIT_COUNT% of 36 checks
+timeout /t 5 /nobreak >nul
+goto DOCKER_POLL_LOOP
+
+:DOCKER_STARTED
+echo.
+echo    [OK] Docker Desktop is now running!
+echo.
+
+:DOCKER_READY
+echo.
+
+REM ============================================================================
 REM STEP 1: Check if custom images exist
 REM ============================================================================
-echo [1/4] Checking custom Docker images...
+echo [1/5] Checking custom Docker images...
 docker images my-spark-worker:latest -q >nul 2>&1
 if %errorlevel% neq 0 (
     echo    [X] Custom image 'my-spark-worker' NOT FOUND
@@ -50,12 +105,14 @@ pause
 
 echo.
 echo Building custom Spark worker image...
+cd /d "%~dp0"
 docker-compose build
 
 if %errorlevel% neq 0 (
     echo.
     echo [X] BUILD FAILED!
     echo    Check docker-compose.yml and Dockerfile.spark-worker
+    echo    Path: %~dp0docker-compose.yml
     pause
     exit /b 1
 )
@@ -70,7 +127,7 @@ REM STEP 2: Check if containers are running
 REM ============================================================================
 :CHECK_CONTAINERS
 echo.
-echo [2/4] Checking containers...
+echo [2/5] Checking containers...
 docker ps -q --filter "name=namenode" >nul 2>&1
 if %errorlevel% neq 0 (
     echo    [!] Containers not running
@@ -92,7 +149,7 @@ REM STEP 3: Ask how many workers
 REM ============================================================================
 :SCALE_WORKERS
 echo.
-echo [3/4] Worker scaling...
+echo [3/5] Worker scaling...
 echo.
 echo    Current workers: 2 (default)
 echo.
@@ -124,11 +181,13 @@ REM Stop containers if running
 docker ps -q --filter "name=namenode" >nul 2>&1
 if %errorlevel% equ 0 (
     echo    Stopping current containers...
+    cd /d "%~dp0"
     docker-compose down
     timeout /t 3 /nobreak >nul
 )
 
 echo    Starting containers with %WORKERS% worker(s)...
+cd /d "%~dp0"
 docker-compose up -d --scale spark-worker=%WORKERS%
 
 if %errorlevel% neq 0 (
@@ -147,7 +206,7 @@ REM ============================================================================
 REM STEP 4: Verify everything
 REM ============================================================================
 echo.
-echo [4/4] Verifying setup...
+echo [4/5] Verifying setup...
 echo.
 echo    Containers:
 docker ps --format "table {{.Names}}\t{{.Status}}"

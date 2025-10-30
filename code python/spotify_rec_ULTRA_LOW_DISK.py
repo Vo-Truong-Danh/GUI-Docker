@@ -496,13 +496,15 @@ def evaluate_map(
         .agg(F.collect_set("track_idx").alias("actual_tracks"))
     )
     
-    # Get unique users
-    users = indexed_df.select("playlist_idx").distinct()
+    # Get unique users and rename to match model's userCol
+    users = indexed_df.select(
+        F.col("playlist_idx").alias("user")
+    ).distinct()
     
     # Generate recommendations - DIRECTLY without caching
     recs = model.recommendForUserSubset(users, top_k)
     recs_df = recs.select(
-        F.col("playlist_idx"),
+        F.col("user").alias("playlist_idx"),  # Rename back for join
         F.col("recommendations.item").alias("pred_tracks")
     )
     
@@ -712,6 +714,8 @@ def main():
     parser.add_argument("--batchSize", type=int, default=3000)  # Smaller default
     parser.add_argument("--force_retrain", action="store_true")
     parser.add_argument("--force_regenerate", action="store_true")
+    parser.add_argument("--skip_training", action="store_true", help="Skip training (load existing model)")
+    parser.add_argument("--skip_evaluation", action="store_true", help="Skip MAP evaluation")
     
     args = parser.parse_args()
     
@@ -729,14 +733,14 @@ def main():
     progress_tracker = ProgressTracker()
     
     try:
-        # Load data
+        # Load data (ResilientDataLoader tự động resume từ checkpoint nếu có)
         raw_df = ResilientDataLoader.load_or_resume(
             spark, args.input_path, 
             f"{args.checkpoint_base}/raw_data",
             progress_tracker
         )
         
-        # Filter
+        # Filter (ResilientFilter tự động resume từ checkpoint nếu có)
         filtered_df = ResilientFilter.filter_or_resume(
             spark, raw_df,
             f"{args.checkpoint_base}/filtered_data",
@@ -744,7 +748,7 @@ def main():
         )
         raw_df.unpersist()  # Free memory
         
-        # Index
+        # Index (ResilientIndexer tự động resume từ checkpoint nếu có)
         indexed_df = ResilientIndexer.index_or_resume(
             spark, filtered_df,
             f"{args.checkpoint_base}/indexed_data",
@@ -757,14 +761,27 @@ def main():
         track_map_df = indexed_df.select("track_idx", "track_uri").distinct()
         
         # Train or load model
-        model = train_or_load(
-            spark, indexed_df, args.model_path, progress_tracker,
-            args.rank, args.maxIter, args.regParam, args.alpha,
-            args.force_retrain
-        )
+        if args.skip_training:
+            print(f"\n⏭️  SKIPPING TRAINING (loading existing model)...")
+            if not os.path.exists(args.model_path.replace("hdfs://namenode:8020", "/data")):
+                print(f"⚠️  WARNING: Model not found at {args.model_path}")
+                print(f"🔄 Will attempt to load anyway (may fail if truly missing)...")
+            from pyspark.ml.recommendation import ALSModel
+            model = ALSModel.load(args.model_path)
+            print(f"✅ Model loaded from {args.model_path}")
+        else:
+            model = train_or_load(
+                spark, indexed_df, args.model_path, progress_tracker,
+                args.rank, args.maxIter, args.regParam, args.alpha,
+                args.force_retrain
+            )
         
         # Evaluate
-        map_score = evaluate_map(spark, model, indexed_df, args.topK)
+        if args.skip_evaluation:
+            print(f"\n⏭️  SKIPPING EVALUATION")
+            map_score = 0.0
+        else:
+            map_score = evaluate_map(spark, model, indexed_df, args.topK)
         
         # Generate submission (DISABLED BY DEFAULT - uncomment to enable)
         # UltraLowDiskSubmissionGenerator.generate_with_recovery(
@@ -777,10 +794,18 @@ def main():
         # )
         
         print("\n" + "=" * 80)
-        print("🎉 TRAINING & EVALUATION COMPLETE!")
+        if args.skip_training and args.skip_evaluation:
+            print("✅ MODEL LOADED (TRAINING & EVALUATION SKIPPED)")
+        elif args.skip_training:
+            print("✅ MODEL LOADED & EVALUATION COMPLETE!")
+        elif args.skip_evaluation:
+            print("✅ TRAINING COMPLETE (EVALUATION SKIPPED)")
+        else:
+            print("🎉 TRAINING & EVALUATION COMPLETE!")
         print("=" * 80)
-        print(f"📊 Final MAP@{args.topK}: {map_score:.4f} ({map_score*100:.2f}%)")
-        print(f"💾 Model saved: {args.model_path}")
+        if not args.skip_evaluation:
+            print(f"📊 Final MAP@{args.topK}: {map_score:.4f} ({map_score*100:.2f}%)")
+        print(f"💾 Model path: {args.model_path}")
         print(f"🔧 Parameters: rank={args.rank}, alpha={args.alpha}, regParam={args.regParam}, maxIter={args.maxIter}")
         print("=" * 80)
         print("\n💡 Submission generation is DISABLED to save disk space.")

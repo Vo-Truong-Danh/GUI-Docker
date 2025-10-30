@@ -7,10 +7,13 @@
   "auto_extract_archives": true,
   "delete_archive_after_extract": true,
   "compose_file": "D:\\BaiTapSinhVien\\TH BigData\\GUI-Docker\\run_spark_gui\\docker-compose.yml",
-  "spark_job_timeout": 300,
-  "hdfs_upload_timeout": 300,
-  "docker_command_timeout": 60,
+  "spark_job_timeout": 36000,
+  "hdfs_upload_timeout": 36000,
+  "docker_command_timeout": 36000,
   "history": [
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_hybrid_v7_enhanced.py",
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_HYBRID_AUTO_CLEANUP.py",
+    "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_ULTRA_LOW_DISK.py",
     "D:/BaiTapSinhVien/TH BigData/GUI-Docker/code python/spotify_rec_optimized_tangchinhxac.py"
   ]
 }

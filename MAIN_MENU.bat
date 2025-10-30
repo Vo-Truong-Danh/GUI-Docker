@@ -25,7 +25,7 @@ echo   [5] MONITOR SPARK JOB (Auto-refresh)
 echo.
 echo   [6] STOP ALL CONTAINERS
 echo.
-echo   [7] COMPACT DOCKER DISK (Free ~180 GB, need Admin)
+echo   [7] COMPACT DOCKER DISK (Free ~180 GB, need Admin) [v2.0]
 echo.
 echo   [8] SYSTEM INFO (Disk, containers, images, volumes)
 echo.
@@ -136,15 +136,21 @@ goto MAIN
 cls
 echo.
 echo ========================================================================
-echo   COMPACT DOCKER DISK - Free 200GB on C:
+echo   COMPACT DOCKER DISK - Free 200GB on C: [v2.0 - FULLY AUTOMATIC]
 echo ========================================================================
 echo.
 echo   This will:
 echo   [1] Clean Docker (delete stopped containers, unused volumes/images)
 echo   [2] Keep HDFS input data (NO need to re-upload!)
-echo   [3] Stop Docker manually
+echo   [3] Auto-stop Docker (kills all processes automatically)
 echo   [4] Compact VHDX (244GB ??? ~40GB)
-echo   [5] Restart Docker
+echo   [5] Auto-restart Docker (starts and waits for ready)
+echo.
+echo   NEW in v2.0:
+echo   ✅ Automatic process killing (no manual quit needed!)
+echo   ✅ Verifies processes stopped before compaction
+echo   ✅ Better error messages if compaction fails
+echo   ✅ Shows space saved at the end
 echo.
 echo   Will free: ~200 GB on C: drive
 echo   Time: 15-20 minutes
